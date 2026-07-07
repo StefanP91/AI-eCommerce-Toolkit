@@ -76,18 +76,11 @@ Without an API key, the app runs in demo mode with sample content.
 
 ---
 
-## Deployment
-
-Production deploy guide: **[DEPLOY.md](DEPLOY.md)** (Cloudflare Pages + Render, free tier).
-
----
-
 ## Project structure
 
 ```
 ├── backend/    Laravel API
 ├── frontend/   React SPA
-├── DEPLOY.md   Hosting guide
 └── README.md
 ```
 
