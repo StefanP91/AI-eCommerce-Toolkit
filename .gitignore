@@ -46,9 +46,6 @@ backend/storage/*.key
 
 # Deploy config (local only)
 render.yaml
-backend/Dockerfile
-backend/.dockerignore
-backend/docker/
 frontend/public/_redirects
 
 # Boilerplate docs (use root README)
