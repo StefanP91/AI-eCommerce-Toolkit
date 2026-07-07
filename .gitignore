@@ -1,0 +1,32 @@
+# Secrets & local config
+admin-credentials.txt
+.env
+backend/.env
+frontend/.env
+
+# Dependencies
+node_modules/
+backend/vendor/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+
+# Laravel
+backend/.phpunit.result.cache
+backend/storage/logs/*
+backend/storage/framework/cache/data/*
+backend/storage/framework/sessions/*
+backend/storage/framework/views/*
+!backend/storage/logs/.gitignore
+!backend/storage/framework/cache/.gitignore
+!backend/storage/framework/cache/data/.gitignore
+!backend/storage/framework/sessions/.gitignore
+!backend/storage/framework/views/.gitignore
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

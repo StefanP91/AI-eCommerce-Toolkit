@@ -1,0 +1,167 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.hover-bg-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.sidebar {
+  width: 300px;
+  min-width: 300px;
+  background-color: #1a1a2e;
+  min-height: 100vh;
+  transition: width 0.25s ease, min-width 0.25s ease;
+  overflow: hidden;
+}
+
+.sidebar-collapsed {
+  width: 72px;
+  min-width: 72px;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 1.25rem 1rem;
+}
+
+.sidebar-header-collapsed {
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0.5rem 0.75rem;
+  gap: 0.75rem;
+}
+
+.sidebar-brand {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar-brand-collapsed {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  flex: none;
+}
+
+.sidebar-favicon {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  display: block;
+}
+
+.sidebar-favicon-sm {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+.sidebar-toggle-collapsed {
+  width: 28px;
+  height: 28px;
+  font-size: 0.85rem;
+}
+
+.sidebar-nav {
+  padding: 1rem 0.75rem;
+}
+
+.sidebar-collapsed .sidebar-nav {
+  padding: 0.75rem 0.5rem;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem !important;
+  white-space: nowrap;
+}
+
+.sidebar-link-collapsed {
+  justify-content: center;
+  padding: 0.75rem !important;
+}
+
+.sidebar-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.sidebar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-footer {
+  padding: 1rem 0.75rem;
+}
+
+.sidebar-collapsed .sidebar-footer {
+  padding: 0.75rem 0.5rem;
+}
+
+.sidebar-logout-collapsed {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-main {
+  min-width: 0;
+  transition: margin 0.25s ease;
+}
+
+.pricing-card {
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pricing-card-pro {
+  border: 2px solid var(--bs-primary) !important;
+}
+
+.pricing-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.pricing-price {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pricing-period {
+  font-size: 1rem;
+  font-weight: 400;
+  color: #6c757d;
+}
+
+.pricing-banner {
+  background: linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%);
+  border-left: 4px solid var(--bs-primary) !important;
+}
