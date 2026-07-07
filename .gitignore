@@ -1,5 +1,6 @@
 # Secrets & credentials
 admin-credentials.txt
+render-db-url.txt
 *.pem
 auth.json
 
