@@ -46,7 +46,6 @@ backend/storage/*.key
 
 # Deploy config (local only)
 render.yaml
-frontend/public/_redirects
 
 # Boilerplate docs (use root README)
 backend/README.md
