@@ -1,0 +1,40 @@
+export const PLANS = {
+  free: {
+    id: 'free',
+    name: 'Free',
+    price: 0,
+    period: 'forever',
+    description: 'Get started with essential AI tools for your store.',
+    features: [
+      '20 AI generations per day',
+      '50 saved products per month',
+      'AI Product Generator',
+      'SEO Audit, Titles & Meta',
+      'Translator & Schema Generator',
+      'Image Optimizer',
+      'Bulk upload (up to 100 rows)',
+      'Export TXT, CSV, Excel, JSON',
+    ],
+    limitations: [
+      'Daily AI generation cap',
+      'Monthly product save cap',
+    ],
+  },
+  pro: {
+    id: 'pro',
+    name: 'Pro',
+    price: 19,
+    period: 'month',
+    description: 'Unlimited AI power for serious eCommerce sellers.',
+    popular: true,
+    features: [
+      'Unlimited AI generations',
+      'Unlimited saved products',
+      'Everything in Free',
+      'Bulk upload (up to 100 rows)',
+      'Priority support',
+      'Early access to new tools',
+    ],
+    limitations: [],
+  },
+};
