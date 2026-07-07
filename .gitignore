@@ -1,6 +1,12 @@
-# Secrets & local config
+# Secrets & credentials
 admin-credentials.txt
+*.pem
+auth.json
+
+# Environment
 .env
+.env.*
+!.env.example
 backend/.env
 frontend/.env
 
@@ -11,22 +17,53 @@ frontend/node_modules/
 
 # Build output
 frontend/dist/
+backend/public/build/
+backend/public/hot/
+backend/public/storage
 
-# Laravel
+# Local database
+backend/database/*.sqlite
+backend/database/*.sqlite-journal
+
+# Laravel runtime
 backend/.phpunit.result.cache
+backend/.phpunit.cache
 backend/storage/logs/*
 backend/storage/framework/cache/data/*
 backend/storage/framework/sessions/*
 backend/storage/framework/views/*
+backend/storage/*.key
 !backend/storage/logs/.gitignore
 !backend/storage/framework/cache/.gitignore
 !backend/storage/framework/cache/data/.gitignore
 !backend/storage/framework/sessions/.gitignore
 !backend/storage/framework/views/.gitignore
+!backend/storage/app/.gitignore
+!backend/storage/app/**/.gitignore
+!backend/storage/framework/.gitignore
+!backend/storage/framework/testing/.gitignore
+
+# Deploy config (local only)
+render.yaml
+backend/Dockerfile
+backend/.dockerignore
+backend/docker/
+frontend/public/_redirects
+
+# Boilerplate docs (use root README)
+backend/README.md
+frontend/README.md
+
+# Unused local assets (optional)
+frontend/src/assets/hero.png
+frontend/src/assets/react.svg
+frontend/src/assets/vite.svg
 
 # OS & IDE
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+.fleet/
 *.swp
+*.log
