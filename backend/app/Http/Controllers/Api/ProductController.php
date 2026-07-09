@@ -311,34 +311,43 @@ class ProductController extends Controller
             ? 'Product updated on Shopify successfully.'
             : 'Product published to Shopify successfully.';
 
+        $auditUrl = $product->product_url;
+        if (! $auditUrl && ! empty($result['handle'])) {
+            $auditUrl = rtrim($store->store_url, '/').'/products/'.$result['handle'];
+        }
+
+        $storeProduct = null;
         $storeRescan = 'skipped';
-        try {
-            sleep(2);
-            $store = $this->storeScanService->scan($store->fresh());
-            $storeRescan = $store->status === 'ready' ? 'completed' : 'failed';
-        } catch (\Throwable $e) {
-            Log::warning('Store rescan after Shopify push failed', [
-                'product_id' => $product->id,
-                'error' => $e->getMessage(),
-            ]);
-            $storeRescan = 'failed';
+
+        if ($auditUrl) {
+            try {
+                sleep(3);
+                $storeProduct = $this->storeScanService->rescanProductUrl($store->fresh(), $auditUrl);
+                $storeRescan = $storeProduct && $storeProduct->status === 'scanned' ? 'completed' : 'failed';
+            } catch (\Throwable $e) {
+                Log::warning('Product rescan after Shopify push failed', [
+                    'product_id' => $product->id,
+                    'url' => $auditUrl,
+                    'error' => $e->getMessage(),
+                ]);
+                $storeRescan = 'failed';
+            }
         }
 
         if ($storeRescan === 'completed') {
-            $message .= ' Store scan refreshed.';
+            $message .= ' Live page score updated.';
         }
 
-        $refreshedProducts = $store->products()
-            ->orderByDesc('seo_score')
-            ->limit(20)
-            ->get(['id', 'url', 'product_name', 'seo_score', 'status']);
+        $store = $store->fresh();
 
         return response()->json([
             'message' => $message,
             'shopify' => $result,
             'store_rescan' => $storeRescan,
-            'store' => $store->fresh()->toApiArray(),
-            'products' => $refreshedProducts,
+            'store' => $store->toApiArray(),
+            'store_product' => $storeProduct?->only([
+                'id', 'url', 'product_name', 'seo_score', 'status',
+            ]),
         ]);
     }
 

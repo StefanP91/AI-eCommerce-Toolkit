@@ -110,9 +110,19 @@ export default function StoreOverview() {
       if (productsData) {
         setProducts(productsData);
       } else if (mergeProduct) {
-        setProducts((current) => current.map((item) => (
-          item.id === mergeProduct.id ? { ...item, ...mergeProduct } : item
-        )));
+        setProducts((current) => current.map((item) => {
+          if (item.id === mergeProduct.id) {
+            return { ...item, ...mergeProduct };
+          }
+
+          const itemUrl = (item.url || '').replace(/\/$/, '').toLowerCase();
+          const mergeUrl = (mergeProduct.url || '').replace(/\/$/, '').toLowerCase();
+          if (itemUrl && mergeUrl && itemUrl === mergeUrl) {
+            return { ...item, ...mergeProduct };
+          }
+
+          return item;
+        }));
       } else if (nextStore) {
         const productsRes = await api.get('/store/products');
         setProducts(productsRes.data.data || []);
@@ -121,9 +131,20 @@ export default function StoreOverview() {
       }
 
       if (mergeProduct) {
-        setAuditProduct((current) => (
-          current?.id === mergeProduct.id ? { ...current, ...mergeProduct } : current
-        ));
+        setAuditProduct((current) => {
+          if (!current) return null;
+          if (current.id === mergeProduct.id) {
+            return { ...current, ...mergeProduct };
+          }
+
+          const currentUrl = (current.url || '').replace(/\/$/, '').toLowerCase();
+          const mergeUrl = (mergeProduct.url || '').replace(/\/$/, '').toLowerCase();
+          if (currentUrl && mergeUrl && currentUrl === mergeUrl) {
+            return { ...current, ...mergeProduct };
+          }
+
+          return current;
+        });
       } else if (productsData) {
         setAuditProduct((current) => {
           if (!current) return null;

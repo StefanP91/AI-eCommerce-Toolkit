@@ -142,7 +142,7 @@ class StoreController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $storeProduct = $this->findStoreProductByUrl($store, $validated['product_url']);
+        $storeProduct = $this->scanService->findStoreProductByUrl($store, $validated['product_url']);
         if ($storeProduct) {
             $storeProduct->update([
                 'product_name' => $result['extracted']['product_name'] ?? $storeProduct->product_name,
@@ -166,22 +166,6 @@ class StoreController extends Controller
             ]),
             'store' => $store->fresh()->toApiArray(),
         ]);
-    }
-
-    private function findStoreProductByUrl(StoreConnection $store, string $url): ?\App\Models\StoreProduct
-    {
-        $target = $this->normalizeProductUrl($url);
-
-        return $store->products()
-            ->get()
-            ->first(fn (\App\Models\StoreProduct $product) => $this->normalizeProductUrl($product->url) === $target);
-    }
-
-    private function normalizeProductUrl(string $url): string
-    {
-        $url = strtolower(strtok($url, '?') ?: $url);
-
-        return rtrim($url, '/');
     }
 
     public function products(Request $request): JsonResponse

@@ -123,11 +123,10 @@ export default function StoreProductAuditFix({
   };
 
   const handlePushSuccess = async (data) => {
+    await runAudit(true);
     await onStoreRefresh?.({
       store: data?.store ?? null,
-      products: data?.products ?? null,
     });
-    await runAudit(true);
   };
 
   const canFix = auditResult && (auditResult.score < 100 || auditResult.recommendations?.length > 0);

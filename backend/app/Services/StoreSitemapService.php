@@ -115,6 +115,23 @@ class StoreSitemapService
         return $scheme.'://'.$host.$port;
     }
 
+    public function normalizeProductUrl(string $url): string
+    {
+        $url = strtolower(trim($url));
+        $url = strtok($url, '?') ?: $url;
+        $url = strtok($url, '#') ?: $url;
+
+        $parts = parse_url($url);
+        if ($parts === false || empty($parts['host'])) {
+            return rtrim($url, '/');
+        }
+
+        $host = strtolower(preg_replace('/^www\./', '', $parts['host']));
+        $path = rtrim($parts['path'] ?? '', '/');
+
+        return $host.$path;
+    }
+
     private function findSitemaps(string $baseUrl): array
     {
         $candidates = [
