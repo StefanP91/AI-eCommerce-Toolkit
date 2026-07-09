@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -17,6 +17,27 @@ import { useAuth } from '../context/AuthContext';
 import PublishToStorePanel from '../components/store/PublishToStorePanel';
 import StoreApiSetup from '../components/store/StoreApiSetup';
 import StoreProductAuditFix from '../components/store/StoreProductAuditFix';
+import StoreProductTableToolbar, { MAX_BULK_SEO_SELECT } from '../components/store/StoreProductTableToolbar';
+import StoreBulkSeoProgress from '../components/store/StoreBulkSeoProgress';
+import { notifyCreditsUpdated } from '../utils/credits';
+
+const GENERATE_DEFAULTS = {
+  language: 'en',
+  tone: 'professional',
+  target_country: 'US',
+  category: 'General',
+};
+
+function matchesProductSearch(product, query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const name = (product.product_name || '').toLowerCase();
+  const url = (product.url || '').toLowerCase();
+  const slug = url.split('/').pop() || '';
+
+  return name.includes(q) || url.includes(q) || slug.includes(q);
+}
 
 function scoreBadge(score) {
   if (score == null) return 'secondary';
@@ -95,8 +116,30 @@ export default function StoreOverview() {
   const [oauthMessage, setOauthMessage] = useState('');
   const [auditProduct, setAuditProduct] = useState(null);
   const [auditSessionKey, setAuditSessionKey] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkMode, setBulkMode] = useState(null);
+  const [bulkItems, setBulkItems] = useState([]);
+  const [bulkIndex, setBulkIndex] = useState(0);
+  const [bulkError, setBulkError] = useState('');
+  const [selectionNotice, setSelectionNotice] = useState('');
 
   const isPro = plan === 'pro';
+
+  const filteredProducts = useMemo(
+    () => products.filter((product) => matchesProductSearch(product, searchQuery)),
+    [products, searchQuery],
+  );
+
+  const selectedProducts = useMemo(
+    () => products.filter((product) => selectedIds.has(product.id)),
+    [products, selectedIds],
+  );
+
+  const allVisibleSelected = filteredProducts.length > 0
+    && filteredProducts
+      .slice(0, MAX_BULK_SEO_SELECT)
+      .every((product) => selectedIds.has(product.id));
 
   const loadStore = async ({
     store: storeData = null,
@@ -249,9 +292,157 @@ export default function StoreOverview() {
       setProducts([]);
       setStoreUrl('');
       setVisitorPassword('');
+      setSelectedIds(new Set());
+      setSearchQuery('');
     } catch (err) {
       setError(err.response?.data?.message || 'Could not disconnect store.');
     }
+  };
+
+  const toggleProductSelection = (productId) => {
+    setSelectionNotice('');
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(productId)) {
+        next.delete(productId);
+        return next;
+      }
+      if (next.size >= MAX_BULK_SEO_SELECT) {
+        setSelectionNotice(`You can select up to ${MAX_BULK_SEO_SELECT} products for bulk SEO.`);
+        return current;
+      }
+      next.add(productId);
+      return next;
+    });
+  };
+
+  const handleSelectAllFiltered = (checked) => {
+    setSelectionNotice('');
+    if (!checked) {
+      setSelectedIds(new Set());
+      return;
+    }
+
+    const next = new Set();
+    for (const product of filteredProducts) {
+      if (next.size >= MAX_BULK_SEO_SELECT) break;
+      next.add(product.id);
+    }
+    if (filteredProducts.length > MAX_BULK_SEO_SELECT) {
+      setSelectionNotice(`Only the first ${MAX_BULK_SEO_SELECT} visible products were selected.`);
+    }
+    setSelectedIds(next);
+  };
+
+  const mergeStoreProduct = (mergeProduct) => {
+    if (!mergeProduct) return;
+    setProducts((current) => current.map((item) => {
+      if (item.id === mergeProduct.id) {
+        return { ...item, ...mergeProduct };
+      }
+      const itemUrl = (item.url || '').replace(/\/$/, '').toLowerCase();
+      const mergeUrl = (mergeProduct.url || '').replace(/\/$/, '').toLowerCase();
+      if (itemUrl && mergeUrl && itemUrl === mergeUrl) {
+        return { ...item, ...mergeProduct };
+      }
+      return item;
+    }));
+  };
+
+  const handleBulkAudit = async () => {
+    if (selectedProducts.length === 0) return;
+
+    setBulkError('');
+    setBulkMode('audit');
+    setBulkItems(selectedProducts);
+    setBulkIndex(0);
+
+    try {
+      for (let index = 0; index < selectedProducts.length; index += 1) {
+        const product = selectedProducts[index];
+        setBulkIndex(index);
+        const res = await api.post('/store/audit-url', {
+          product_url: product.url,
+          bust_cache: true,
+        });
+        mergeStoreProduct(res.data.store_product);
+        if (res.data.store) {
+          setStore(res.data.store);
+        }
+      }
+      setBulkIndex(selectedProducts.length);
+      setSelectedIds(new Set());
+    } catch (err) {
+      setBulkError(err.response?.data?.message || 'Bulk audit failed. Please try again.');
+      setBulkIndex(selectedProducts.length);
+    } finally {
+      setBulkMode(null);
+    }
+  };
+
+  const handleBulkFix = async () => {
+    if (selectedProducts.length === 0) return;
+
+    const needsWork = selectedProducts.filter((product) => (product.seo_score ?? 0) < 90);
+    const targets = needsWork.length > 0 ? needsWork : selectedProducts;
+
+    if (!window.confirm(
+      `Run AI SEO fix for ${targets.length} product${targets.length === 1 ? '' : 's'}? This uses generation credits.`,
+    )) {
+      return;
+    }
+
+    setBulkError('');
+    setBulkMode('fix');
+    setBulkItems(targets);
+    setBulkIndex(0);
+
+    try {
+      for (let index = 0; index < targets.length; index += 1) {
+        const product = targets[index];
+        setBulkIndex(index);
+
+        const generateRes = await api.post('/products/generate', {
+          input_type: 'url',
+          product_url: product.url,
+          product_name: product.product_name,
+          ...GENERATE_DEFAULTS,
+        });
+
+        await api.post('/products', {
+          ...generateRes.data.input,
+          generated_content: generateRes.data.content,
+          seo_score: generateRes.data.seo_score,
+          seo_checks: generateRes.data.seo_checks,
+          history_id: generateRes.data.history_id,
+        });
+
+        notifyCreditsUpdated();
+
+        const auditRes = await api.post('/store/audit-url', {
+          product_url: product.url,
+          bust_cache: true,
+        });
+        mergeStoreProduct(auditRes.data.store_product);
+        if (auditRes.data.store) {
+          setStore(auditRes.data.store);
+        }
+      }
+
+      setBulkIndex(targets.length);
+      setSelectedIds(new Set());
+    } catch (err) {
+      setBulkError(err.response?.data?.message || 'Bulk SEO fix failed. Please try again.');
+      setBulkIndex(targets.length);
+    } finally {
+      setBulkMode(null);
+    }
+  };
+
+  const dismissBulkProgress = () => {
+    setBulkItems([]);
+    setBulkIndex(0);
+    setBulkError('');
   };
 
   if (loading) {
@@ -457,14 +648,54 @@ export default function StoreOverview() {
                   />
                 </div>
               )}
+
+              {bulkItems.length > 0 && (
+                <StoreBulkSeoProgress
+                  mode={bulkMode || 'audit'}
+                  items={bulkItems}
+                  currentIndex={bulkIndex}
+                  currentLabel={bulkItems[bulkIndex]?.product_name || bulkItems[bulkIndex]?.url || ''}
+                  error={bulkError}
+                  onDismiss={dismissBulkProgress}
+                />
+              )}
+
               {products.length === 0 ? (
                 <div className="text-center py-5 text-muted">
                   No products scanned yet. Try rescanning your store.
                 </div>
               ) : (
+                <>
+                  <StoreProductTableToolbar
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    filteredCount={filteredProducts.length}
+                    totalCount={products.length}
+                    selectedCount={selectedIds.size}
+                    onSelectAllFiltered={handleSelectAllFiltered}
+                    onClearSelection={() => setSelectedIds(new Set())}
+                    onBulkAudit={handleBulkAudit}
+                    onBulkFix={handleBulkFix}
+                    bulkRunning={Boolean(bulkMode)}
+                    bulkMode={bulkMode}
+                    allVisibleSelected={allVisibleSelected}
+                  />
+
+                  {selectionNotice && (
+                    <div className="px-3 pb-2">
+                      <Alert variant="info" className="py-2 small mb-0">{selectionNotice}</Alert>
+                    </div>
+                  )}
+
+                  {filteredProducts.length === 0 ? (
+                    <div className="text-center py-5 text-muted">
+                      No products match &quot;{searchQuery.trim()}&quot;.
+                    </div>
+                  ) : (
                 <Table hover responsive className="mb-0 align-middle">
                   <thead>
                     <tr>
+                      <th style={{ width: 42 }} />
                       <th>Product</th>
                       <th>SEO Score</th>
                       <th>Status</th>
@@ -472,8 +703,17 @@ export default function StoreOverview() {
                     </tr>
                   </thead>
                   <tbody>
-                    {products.map((product) => (
-                      <tr key={product.id}>
+                    {filteredProducts.map((product) => (
+                      <tr key={product.id} className={selectedIds.has(product.id) ? 'table-primary' : undefined}>
+                        <td>
+                          <Form.Check
+                            type="checkbox"
+                            checked={selectedIds.has(product.id)}
+                            onChange={() => toggleProductSelection(product.id)}
+                            disabled={Boolean(bulkMode) || (!selectedIds.has(product.id) && selectedIds.size >= MAX_BULK_SEO_SELECT)}
+                            aria-label={`Select ${product.product_name || 'product'}`}
+                          />
+                        </td>
                         <td>
                           <div className="fw-semibold">{product.product_name || 'Unnamed product'}</div>
                           <a href={product.url} target="_blank" rel="noreferrer" className="small text-muted text-truncate d-block" style={{ maxWidth: 420 }}>
@@ -510,6 +750,8 @@ export default function StoreOverview() {
                     ))}
                   </tbody>
                 </Table>
+                  )}
+                </>
               )}
             </Card.Body>
           </Card>
