@@ -184,11 +184,13 @@ class PlatformExportService
         $payload = [
             'title' => $fields['name'],
             'body_html' => $this->buildShopifyBodyHtml($fields, $content),
-            'vendor' => '',
-            'product_type' => $fields['category'],
             'tags' => $fields['tags'],
             'status' => 'active',
         ];
+
+        if ($fields['category'] !== '') {
+            $payload['product_type'] = $fields['category'];
+        }
 
         if (! $forUpdate) {
             $urlHandle = $this->handleFromUrl($product->product_url);
@@ -244,7 +246,7 @@ class PlatformExportService
         $features = $content['features'] ?? [];
         if ($features !== []) {
             $items = collect($features)
-                ->map(fn (string $feature) => '<li>'.htmlspecialchars($feature, ENT_QUOTES, 'UTF-8').'</li>')
+                ->map(fn ($feature) => '<li>'.htmlspecialchars((string) $feature, ENT_QUOTES, 'UTF-8').'</li>')
                 ->implode('');
             $parts[] = '<h3>Features</h3><ul>'.$items.'</ul>';
         }
@@ -252,7 +254,7 @@ class PlatformExportService
         $benefits = $content['benefits'] ?? [];
         if ($benefits !== []) {
             $items = collect($benefits)
-                ->map(fn (string $benefit) => '<li>'.htmlspecialchars($benefit, ENT_QUOTES, 'UTF-8').'</li>')
+                ->map(fn ($benefit) => '<li>'.htmlspecialchars((string) $benefit, ENT_QUOTES, 'UTF-8').'</li>')
                 ->implode('');
             $parts[] = '<h3>Benefits</h3><ul>'.$items.'</ul>';
         }

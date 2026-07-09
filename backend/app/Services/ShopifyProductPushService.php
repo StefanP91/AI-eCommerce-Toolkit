@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\StoreConnection;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -47,14 +49,23 @@ class ShopifyProductPushService
 
     private function createProduct(string $host, string $token, Product $product): array
     {
-        $response = Http::withHeaders($this->headers($token))
-            ->timeout(30)
+        $response = $this->shopifyRequest($token)
             ->post(
                 $this->apiUrl($host, 'products.json'),
                 ['product' => $this->platformExport->shopifyProductPayload($product)]
             );
 
         if (! $response->successful()) {
+            $handle = $this->platformExport->handleFromUrl($product->product_url)
+                ?? Str::slug((string) $product->product_name);
+
+            if ($handle !== '' && $this->isDuplicateHandleError($response)) {
+                $existingId = $this->findProductIdByHandle($host, $token, $handle);
+                if ($existingId) {
+                    return $this->updateProduct($host, $token, $product, $existingId);
+                }
+            }
+
             throw new \RuntimeException($this->formatShopifyError($response->json('errors') ?? $response->body()));
         }
 
@@ -77,8 +88,7 @@ class ShopifyProductPushService
         $payload = $this->platformExport->shopifyProductPayload($product, forUpdate: true);
         $payload['id'] = $shopifyProductId;
 
-        $response = Http::withHeaders($this->headers($token))
-            ->timeout(30)
+        $response = $this->shopifyRequest($token)
             ->put(
                 $this->apiUrl($host, "products/{$shopifyProductId}.json"),
                 ['product' => $payload]
@@ -93,7 +103,14 @@ class ShopifyProductPushService
             throw new \RuntimeException('Shopify returned an unexpected response after updating the product.');
         }
 
-        $this->updateSeoMetafields($host, $token, $shopifyProductId, $product);
+        try {
+            $this->updateSeoMetafields($host, $token, $shopifyProductId, $product);
+        } catch (\Throwable $e) {
+            Log::warning('Shopify SEO metafield update failed after product push', [
+                'shopify_product_id' => $shopifyProductId,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return [
             'action' => 'updated',
@@ -121,18 +138,12 @@ class ShopifyProductPushService
             }
         }
 
-        $nameHandle = Str::slug((string) $product->product_name);
-        if ($nameHandle !== '') {
-            return $this->findProductIdByHandle($host, $token, $nameHandle);
-        }
-
         return null;
     }
 
     private function findProductIdByHandle(string $host, string $token, string $handle): ?int
     {
-        $response = Http::withHeaders($this->headers($token))
-            ->timeout(20)
+        $response = $this->shopifyRequest($token)
             ->get($this->apiUrl($host, 'products.json'), [
                 'handle' => $handle,
                 'limit' => 1,
@@ -150,8 +161,8 @@ class ShopifyProductPushService
     private function updateSeoMetafields(string $host, string $token, int $shopifyProductId, Product $product): void
     {
         $content = $product->generated_content ?? [];
-        $metaTitle = $content['meta_title'] ?? $content['seo_title'] ?? '';
-        $metaDescription = $content['meta_description'] ?? '';
+        $metaTitle = (string) ($content['meta_title'] ?? $content['seo_title'] ?? '');
+        $metaDescription = (string) ($content['meta_description'] ?? '');
 
         if ($metaTitle !== '') {
             $this->upsertProductMetafield($host, $token, $shopifyProductId, 'title_tag', $metaTitle);
@@ -169,8 +180,7 @@ class ShopifyProductPushService
         string $key,
         string $value,
     ): void {
-        $listResponse = Http::withHeaders($this->headers($token))
-            ->timeout(20)
+        $listResponse = $this->shopifyRequest($token)
             ->get($this->apiUrl($host, "products/{$shopifyProductId}/metafields.json"));
 
         if (! $listResponse->successful()) {
@@ -178,11 +188,16 @@ class ShopifyProductPushService
         }
 
         $existing = collect($listResponse->json('metafields') ?? [])
-            ->first(fn (array $metafield) => ($metafield['namespace'] ?? '') === 'global' && ($metafield['key'] ?? '') === $key);
+            ->first(function ($metafield) use ($key) {
+                if (! is_array($metafield)) {
+                    return false;
+                }
 
-        if ($existing) {
-            Http::withHeaders($this->headers($token))
-                ->timeout(20)
+                return ($metafield['namespace'] ?? '') === 'global' && ($metafield['key'] ?? '') === $key;
+            });
+
+        if (is_array($existing) && ! empty($existing['id'])) {
+            $this->shopifyRequest($token)
                 ->put($this->apiUrl($host, "metafields/{$existing['id']}.json"), [
                     'metafield' => [
                         'id' => $existing['id'],
@@ -194,8 +209,7 @@ class ShopifyProductPushService
             return;
         }
 
-        Http::withHeaders($this->headers($token))
-            ->timeout(20)
+        $this->shopifyRequest($token)
             ->post($this->apiUrl($host, "products/{$shopifyProductId}/metafields.json"), [
                 'metafield' => [
                     'namespace' => 'global',
@@ -204,6 +218,15 @@ class ShopifyProductPushService
                     'type' => 'single_line_text_field',
                 ],
             ]);
+    }
+
+    private function shopifyRequest(string $token)
+    {
+        return Http::withHeaders($this->headers($token))
+            ->timeout(30)
+            ->retry(2, 500, function (\Throwable $exception) {
+                return $exception instanceof ConnectionException;
+            });
     }
 
     private function headers(string $token): array
@@ -254,6 +277,15 @@ class ShopifyProductPushService
 
         return str_contains($message, 'not found')
             || str_contains($message, '404');
+    }
+
+    private function isDuplicateHandleError($response): bool
+    {
+        $errors = $response->json('errors');
+        $encoded = is_array($errors) ? json_encode($errors) : (string) $errors;
+
+        return str_contains(strtolower($encoded), 'handle')
+            && str_contains(strtolower($encoded), 'taken');
     }
 
     private function formatShopifyError(mixed $error): string

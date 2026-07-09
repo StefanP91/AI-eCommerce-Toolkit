@@ -17,6 +17,7 @@ use App\Services\StoreScanService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -265,14 +266,33 @@ class ProductController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
-        } catch (\Throwable $e) {
-            Log::error('Push to Shopify failed', [
+        } catch (ConnectionException $e) {
+            Log::error('Push to Shopify connection failed', [
                 'product_id' => $product->id,
                 'error' => $e->getMessage(),
             ]);
 
             return response()->json([
-                'message' => 'Push to Shopify failed. Please try again or reconnect your store.',
+                'message' => 'Could not reach Shopify. Please try again in a moment.',
+            ], 422);
+        } catch (QueryException $e) {
+            Log::error('Push to Shopify database error', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Database error during push. Run migrations on the server and try again.',
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('Push to Shopify failed', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+                'type' => $e::class,
+            ]);
+
+            return response()->json([
+                'message' => 'Push to Shopify failed: '.$e->getMessage(),
             ], 422);
         }
 
