@@ -121,8 +121,90 @@ for ($x = 0; $x < $width; $x++) {
     }
 }
 
-imagepng($output, $target);
-imagedestroy($img);
+$trimmed = trimTransparent($output);
 imagedestroy($output);
 
-echo "Saved transparent favicon to {$target}\n";
+$canvasSize = 512;
+$paddingRatio = 0.06;
+$scaled = scaleToSquare($trimmed, $canvasSize, $paddingRatio);
+imagedestroy($trimmed);
+
+imagepng($scaled, $target);
+imagedestroy($img);
+imagedestroy($scaled);
+
+echo "Saved transparent favicon to {$target} ({$canvasSize}x{$canvasSize})\n";
+
+function trimTransparent($img)
+{
+    $width = imagesx($img);
+    $height = imagesy($img);
+    $minX = $width;
+    $minY = $height;
+    $maxX = 0;
+    $maxY = 0;
+
+    for ($x = 0; $x < $width; $x++) {
+        for ($y = 0; $y < $height; $y++) {
+            $rgba = imagecolorat($img, $x, $y);
+            $alpha = ($rgba >> 24) & 0x7F;
+            if ($alpha >= 127) {
+                continue;
+            }
+
+            $minX = min($minX, $x);
+            $minY = min($minY, $y);
+            $maxX = max($maxX, $x);
+            $maxY = max($maxY, $y);
+        }
+    }
+
+    if ($maxX < $minX || $maxY < $minY) {
+        return $img;
+    }
+
+    $cropWidth = $maxX - $minX + 1;
+    $cropHeight = $maxY - $minY + 1;
+    $cropped = imagecreatetruecolor($cropWidth, $cropHeight);
+    imagealphablending($cropped, false);
+    imagesavealpha($cropped, true);
+    $transparent = imagecolorallocatealpha($cropped, 0, 0, 0, 127);
+    imagefill($cropped, 0, 0, $transparent);
+    imagecopy($cropped, $img, 0, 0, $minX, $minY, $cropWidth, $cropHeight);
+
+    return $cropped;
+}
+
+function scaleToSquare($img, int $size, float $paddingRatio)
+{
+    $srcWidth = imagesx($img);
+    $srcHeight = imagesy($img);
+    $usable = (int) round($size * (1 - ($paddingRatio * 2)));
+    $scale = min($usable / $srcWidth, $usable / $srcHeight);
+    $targetWidth = max(1, (int) round($srcWidth * $scale));
+    $targetHeight = max(1, (int) round($srcHeight * $scale));
+
+    $canvas = imagecreatetruecolor($size, $size);
+    imagealphablending($canvas, false);
+    imagesavealpha($canvas, true);
+    $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
+    imagefill($canvas, 0, 0, $transparent);
+
+    $offsetX = (int) round(($size - $targetWidth) / 2);
+    $offsetY = (int) round(($size - $targetHeight) / 2);
+
+    imagecopyresampled(
+        $canvas,
+        $img,
+        $offsetX,
+        $offsetY,
+        0,
+        0,
+        $targetWidth,
+        $targetHeight,
+        $srcWidth,
+        $srcHeight
+    );
+
+    return $canvas;
+}

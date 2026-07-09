@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class StoreSitemapService
 {
+    private ?PendingRequest $http = null;
+
     private const PRODUCT_PATH_PATTERNS = [
         '#/products?/#i',
         '#/product/#i',
@@ -40,27 +42,58 @@ class StoreSitemapService
         '#/cdn-cgi#i',
     ];
 
-    public function discoverProductUrls(string $storeUrl, int $limit = 25): array
-    {
+    public function __construct(
+        private StorefrontSessionService $sessionService,
+    ) {}
+
+    public function discoverProductUrls(
+        string $storeUrl,
+        int $limit = 25,
+        ?string $visitorPassword = null,
+        ?PendingRequest $http = null,
+    ): array {
         $base = $this->normalizeBaseUrl($storeUrl);
-        $sitemapUrls = $this->findSitemaps($base);
+        $ownsSession = $http === null;
 
-        if ($sitemapUrls === []) {
-            throw new \RuntimeException('No sitemap found. Make sure your store has /sitemap.xml enabled.');
+        try {
+            $this->http = $http ?? $this->sessionService->create($base, $visitorPassword);
+
+            $homepage = $this->fetchText($base);
+            if ($this->sessionService->isPasswordProtectedHtml($homepage) && ($visitorPassword === null || $visitorPassword === '')) {
+                throw new \RuntimeException(
+                    'This store is password protected. Enter your visitor password and try again.'
+                );
+            }
+
+            $sitemapUrls = $this->findSitemaps($base);
+
+            if ($sitemapUrls === []) {
+                throw new \RuntimeException('No sitemap found. Make sure your store has /sitemap.xml enabled and is publicly accessible.');
+            }
+
+            $allUrls = [];
+            foreach ($sitemapUrls as $sitemapUrl) {
+                $allUrls = array_merge($allUrls, $this->parseSitemap($sitemapUrl));
+            }
+
+            $productUrls = $this->filterProductUrls(array_values(array_unique($allUrls)), $base);
+
+            if ($productUrls === []) {
+                if ($this->sessionService->isPasswordProtectedHtml($this->fetchText($base))) {
+                    throw new \RuntimeException(
+                        'This store is password protected. Enter your visitor password and try again.'
+                    );
+                }
+
+                throw new \RuntimeException('Sitemap found, but no product URLs were detected. Make sure the store has published products.');
+            }
+
+            return array_slice($productUrls, 0, $limit);
+        } finally {
+            if ($ownsSession) {
+                $this->http = null;
+            }
         }
-
-        $allUrls = [];
-        foreach ($sitemapUrls as $sitemapUrl) {
-            $allUrls = array_merge($allUrls, $this->parseSitemap($sitemapUrl));
-        }
-
-        $productUrls = $this->filterProductUrls(array_values(array_unique($allUrls)), $base);
-
-        if ($productUrls === []) {
-            throw new \RuntimeException('Sitemap found, but no product URLs were detected. Try a WooCommerce or Shopify store URL.');
-        }
-
-        return array_slice($productUrls, 0, $limit);
     }
 
     public function normalizeBaseUrl(string $url): string
@@ -107,7 +140,10 @@ class StoreSitemapService
         if ($robots) {
             preg_match_all('/^Sitemap:\s*(\S+)/mi', $robots, $matches);
             foreach ($matches[1] ?? [] as $sitemap) {
-                $found[] = trim($sitemap);
+                $candidate = trim($sitemap);
+                if ($this->urlExists($candidate)) {
+                    $found[] = $candidate;
+                }
             }
         }
 
@@ -121,7 +157,7 @@ class StoreSitemapService
         }
 
         $xml = $this->fetchText($url);
-        if (! $xml) {
+        if (! $this->isSitemapXml($xml)) {
             return [];
         }
 
@@ -188,30 +224,33 @@ class StoreSitemapService
     private function urlExists(string $url): bool
     {
         try {
-            $response = Http::withHeaders($this->headers())
-                ->timeout(12)
-                ->head($url);
+            $response = $this->client()->get($url);
 
-            if ($response->successful()) {
-                return true;
-            }
-
-            $response = Http::withHeaders($this->headers())
-                ->timeout(12)
-                ->get($url);
-
-            return $response->successful();
+            return $response->successful() && $this->isSitemapXml($response->body());
         } catch (\Exception $e) {
             return false;
         }
     }
 
+    private function isSitemapXml(?string $content): bool
+    {
+        if (! $content) {
+            return false;
+        }
+
+        $trimmed = ltrim($content);
+        if (stripos($trimmed, '<!DOCTYPE') === 0 || stripos($trimmed, '<html') === 0) {
+            return false;
+        }
+
+        return stripos($content, '<urlset') !== false
+            || stripos($content, '<sitemapindex') !== false;
+    }
+
     private function fetchText(string $url): ?string
     {
         try {
-            $response = Http::withHeaders($this->headers())
-                ->timeout(20)
-                ->get($url);
+            $response = $this->client()->get($url);
 
             return $response->successful() ? $response->body() : null;
         } catch (\Exception $e) {
@@ -221,11 +260,8 @@ class StoreSitemapService
         }
     }
 
-    private function headers(): array
+    private function client(): PendingRequest
     {
-        return [
-            'User-Agent' => 'Mozilla/5.0 (compatible; AICommerceSuite/1.0; +https://ai-ecommerce-suite.netlify.app)',
-            'Accept' => 'application/xml,text/xml,text/plain,*/*',
-        ];
+        return $this->http ?? throw new \LogicException('Store HTTP session has not been initialized.');
     }
 }

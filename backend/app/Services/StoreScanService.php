@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\StoreConnection;
-use App\Models\StoreProduct;
 use Illuminate\Support\Facades\DB;
 
 class StoreScanService
@@ -12,6 +11,7 @@ class StoreScanService
 
     public function __construct(
         private StoreSitemapService $sitemapService,
+        private StorefrontSessionService $sessionService,
         private SeoAuditService $auditService,
     ) {}
 
@@ -22,8 +22,17 @@ class StoreScanService
             'error_message' => null,
         ]);
 
+        $visitorPassword = $store->store_password;
+
         try {
-            $urls = $this->sitemapService->discoverProductUrls($store->store_url, self::SCAN_LIMIT);
+            $baseUrl = $this->sitemapService->normalizeBaseUrl($store->store_url);
+            $http = $this->sessionService->create($baseUrl, $visitorPassword);
+            $urls = $this->sitemapService->discoverProductUrls(
+                $store->store_url,
+                self::SCAN_LIMIT,
+                $visitorPassword,
+                $http,
+            );
         } catch (\Throwable $e) {
             $store->update([
                 'status' => 'error',
@@ -34,7 +43,7 @@ class StoreScanService
             return $store->fresh();
         }
 
-        DB::transaction(function () use ($store, $urls): void {
+        DB::transaction(function () use ($store, $urls, $http): void {
             $store->products()->delete();
 
             $scores = [];
@@ -46,7 +55,7 @@ class StoreScanService
                 ]);
 
                 try {
-                    $audit = $this->auditService->auditUrl($url);
+                    $audit = $this->auditService->auditUrl($url, $http);
                     $score = $audit['score'];
                     $scores[] = $score;
 

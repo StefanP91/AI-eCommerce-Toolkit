@@ -26,6 +26,7 @@ export default function StoreOverview() {
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
   const [storeUrl, setStoreUrl] = useState('');
+  const [visitorPassword, setVisitorPassword] = useState('');
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -74,7 +75,11 @@ export default function StoreOverview() {
     setError('');
     setSubmitting(true);
     try {
-      const res = await api.post('/store', { store_url: storeUrl });
+      const payload = { store_url: storeUrl };
+      if (visitorPassword.trim()) {
+        payload.visitor_password = visitorPassword;
+      }
+      const res = await api.post('/store', payload);
       setStore(res.data.store);
       await loadStore();
     } catch (err) {
@@ -91,7 +96,11 @@ export default function StoreOverview() {
     setError('');
     setScanning(true);
     try {
-      const res = await api.post('/store/scan');
+      const payload = {};
+      if (visitorPassword.trim()) {
+        payload.visitor_password = visitorPassword;
+      }
+      const res = await api.post('/store/scan', payload);
       setStore(res.data.store);
       await loadStore();
     } catch (err) {
@@ -112,6 +121,7 @@ export default function StoreOverview() {
       setStore(null);
       setProducts([]);
       setStoreUrl('');
+      setVisitorPassword('');
     } catch (err) {
       setError(err.response?.data?.message || 'Could not disconnect store.');
     }
@@ -158,7 +168,7 @@ export default function StoreOverview() {
               Works with Shopify, WooCommerce, and most stores with a standard sitemap.
             </p>
             <Form onSubmit={handleConnect} className="mt-3">
-              <Row className="g-2 align-items-end">
+              <Row className="g-3">
                 <Col md={8}>
                   <Form.Group>
                     <Form.Label>Store URL</Form.Label>
@@ -172,7 +182,24 @@ export default function StoreOverview() {
                   </Form.Group>
                 </Col>
                 <Col md={4}>
-                  <Button type="submit" variant="primary" className="w-100" disabled={submitting}>
+                  <Form.Group>
+                    <Form.Label>
+                      Visitor password <span className="text-muted fw-normal">(optional)</span>
+                    </Form.Label>
+                    <Form.Control
+                      type="password"
+                      value={visitorPassword}
+                      onChange={(e) => setVisitorPassword(e.target.value)}
+                      placeholder="Development store password"
+                      autoComplete="off"
+                    />
+                    <Form.Text className="text-muted">
+                      If your store uses a visitor password, enter it here.
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+                <Col xs={12} className="d-flex justify-content-end">
+                  <Button type="submit" variant="primary" disabled={submitting}>
                     {submitting ? (
                       <>
                         <Spinner animation="border" size="sm" className="me-2" />
@@ -205,6 +232,33 @@ export default function StoreOverview() {
         <>
           {store.status === 'error' && store.error_message && (
             <Alert variant="warning">{store.error_message}</Alert>
+          )}
+
+          {(store.status === 'error' || store.has_visitor_password) && (
+            <Card className="border-0 shadow-sm mb-4">
+              <Card.Body className="p-4">
+                <h6 className="mb-2">Visitor password</h6>
+                <p className="text-muted small mb-3">
+                  Development stores protected with a visitor password need the password saved here before scanning.
+                </p>
+                <Row className="g-2 align-items-end">
+                  <Col md={6}>
+                    <Form.Control
+                      type="password"
+                      value={visitorPassword}
+                      onChange={(e) => setVisitorPassword(e.target.value)}
+                      placeholder={store.has_visitor_password ? 'Saved — enter a new password to update' : 'Enter visitor password'}
+                      autoComplete="off"
+                    />
+                  </Col>
+                  <Col md="auto">
+                    <Button variant="outline-primary" onClick={handleRescan} disabled={scanning}>
+                      {scanning ? 'Scanning...' : 'Save & Rescan'}
+                    </Button>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
           )}
 
           <Row className="g-4 mb-4">

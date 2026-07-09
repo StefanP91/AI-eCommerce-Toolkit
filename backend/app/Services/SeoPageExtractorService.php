@@ -8,9 +8,9 @@ use Illuminate\Support\Str;
 
 class SeoPageExtractorService
 {
-    public function extract(string $url): array
+    public function extract(string $url, ?\Illuminate\Http\Client\PendingRequest $http = null): array
     {
-        $html = $this->fetchHtml($url);
+        $html = $this->fetchHtml($url, $http);
 
         if (empty($html)) {
             throw new \RuntimeException('Could not fetch the page. Check the URL and try again.');
@@ -52,13 +52,15 @@ class SeoPageExtractorService
         ];
     }
 
-    private function fetchHtml(string $url): ?string
+    private function fetchHtml(string $url, ?\Illuminate\Http\Client\PendingRequest $http = null): ?string
     {
         try {
-            $response = Http::withHeaders([
+            $client = $http ?? Http::withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
                 'Accept' => 'text/html,application/xhtml+xml',
-            ])->timeout(20)->get($url);
+            ])->timeout(20);
+
+            $response = $client->get($url);
 
             return $response->successful() ? $response->body() : null;
         } catch (\Exception $e) {

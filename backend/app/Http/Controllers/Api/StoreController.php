@@ -39,6 +39,7 @@ class StoreController extends Controller
 
         $validated = $request->validate([
             'store_url' => ['required', 'string', 'max:500'],
+            'visitor_password' => ['nullable', 'string', 'max:255'],
         ]);
 
         try {
@@ -47,15 +48,21 @@ class StoreController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
+        $attributes = [
+            'store_url' => $normalizedUrl,
+            'status' => 'pending',
+            'product_count' => 0,
+            'avg_seo_score' => null,
+            'error_message' => null,
+        ];
+
+        if (array_key_exists('visitor_password', $validated)) {
+            $attributes['store_password'] = $validated['visitor_password'] ?: null;
+        }
+
         $store = StoreConnection::updateOrCreate(
             ['user_id' => $request->user()->id],
-            [
-                'store_url' => $normalizedUrl,
-                'status' => 'pending',
-                'product_count' => 0,
-                'avg_seo_score' => null,
-                'error_message' => null,
-            ]
+            $attributes
         );
 
         $store = $this->scanService->scan($store);
@@ -63,7 +70,7 @@ class StoreController extends Controller
         return response()->json([
             'message' => $store->status === 'ready'
                 ? 'Store connected and scanned successfully.'
-                : 'Store connected, but scanning failed.',
+                : ($store->error_message ?? 'Store connected, but scanning failed.'),
             'store' => $this->formatStore($store),
         ], $store->status === 'error' ? 422 : 200);
     }
@@ -82,12 +89,23 @@ class StoreController extends Controller
             return response()->json(['message' => 'No store connected yet.'], 404);
         }
 
+        $validated = $request->validate([
+            'visitor_password' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        if (array_key_exists('visitor_password', $validated)) {
+            $store->update([
+                'store_password' => $validated['visitor_password'] ?: null,
+            ]);
+            $store->refresh();
+        }
+
         $store = $this->scanService->scan($store);
 
         return response()->json([
             'message' => $store->status === 'ready'
                 ? 'Store scan completed.'
-                : 'Store scan failed.',
+                : ($store->error_message ?? 'Store scan failed.'),
             'store' => $this->formatStore($store),
         ], $store->status === 'error' ? 422 : 200);
     }
@@ -128,6 +146,7 @@ class StoreController extends Controller
         return [
             'id' => $store->id,
             'store_url' => $store->store_url,
+            'has_visitor_password' => filled($store->store_password),
             'status' => $store->status,
             'product_count' => $store->product_count,
             'avg_seo_score' => $store->avg_seo_score,
