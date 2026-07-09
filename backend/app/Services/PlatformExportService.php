@@ -182,7 +182,7 @@ class PlatformExportService
         $handle = $this->handle($fields['name']);
 
         $payload = [
-            'title' => $fields['name'],
+            'title' => $this->shopifyProductTitle($fields, $content),
             'body_html' => $this->buildShopifyBodyHtml($fields, $content),
             'tags' => $fields['tags'],
             'status' => 'active',
@@ -287,6 +287,18 @@ class PlatformExportService
             'image_alt' => $content['image_alt_text'] ?? '',
             'category' => $product->category ?? '',
         ];
+    }
+
+    private function shopifyProductTitle(array $fields, array $content): string
+    {
+        foreach ([$content['seo_title'] ?? '', $fields['meta_title'], $fields['name']] as $candidate) {
+            $candidate = trim((string) $candidate);
+            if ($candidate !== '' && strlen($candidate) <= 255) {
+                return $candidate;
+            }
+        }
+
+        return $fields['name'];
     }
 
     private function handle(string $name): string

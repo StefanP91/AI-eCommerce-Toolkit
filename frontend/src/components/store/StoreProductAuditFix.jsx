@@ -128,7 +128,7 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
   };
 
   const canFix = auditResult && (auditResult.score < 100 || auditResult.recommendations?.length > 0);
-  const displayAudit = livePageAudit ?? auditResult;
+  const currentLiveAudit = livePageAudit ?? auditResult;
 
   return (
     <Card ref={panelRef} className="border-0 shadow-sm mb-4 border-primary border-2">
@@ -225,36 +225,33 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
           </div>
         )}
 
-        {phase === 'done' && generatedResult && displayAudit && (
+        {phase === 'done' && generatedResult && auditResult && (
           <>
-            {livePageAudit && (
-              <>
-                <Alert variant="success" className="py-2">
-                  Live store page score after push: <strong>{livePageAudit.score}/100</strong>
-                  {auditResult && livePageAudit.score !== auditResult.score && (
-                    <span className="ms-1">
-                      (was {auditResult.score}/100 before push)
-                    </span>
-                  )}
-                </Alert>
-                <small className="text-muted text-uppercase fw-semibold d-block mb-2">Live page score (store)</small>
-                <SeoScore score={livePageAudit.score} checks={livePageAudit.checks} />
-              </>
+            {!livePageAudit && (
+              <Alert variant="info" className="py-2">
+                Content is ready. Push to Shopify to update your live page score below.
+              </Alert>
             )}
 
-            {!livePageAudit && generatedResult.seo_score > auditResult.score && (
+            {livePageAudit && auditResult && livePageAudit.score !== auditResult.score && (
               <Alert variant="success" className="py-2">
-                AI content score improved from <strong>{auditResult.score}</strong> to{' '}
-                <strong>{generatedResult.seo_score}</strong>/100
+                Live page score updated from <strong>{auditResult.score}</strong> to{' '}
+                <strong>{livePageAudit.score}</strong>/100 after push.
               </Alert>
+            )}
+
+            {currentLiveAudit && (
+              <>
+                <small className="text-muted text-uppercase fw-semibold d-block mb-2">Live page score</small>
+                <SeoScore score={currentLiveAudit.score} checks={currentLiveAudit.checks} />
+              </>
             )}
 
             <ProductResults
               result={generatedResult}
               store={store}
               onPushSuccess={handlePushSuccess}
-              scoreLabel="AI content preview score"
-              scoreHint="This scores the generated copy. Your live Shopify page is scored separately after push."
+              hideSeoScore
             />
           </>
         )}
