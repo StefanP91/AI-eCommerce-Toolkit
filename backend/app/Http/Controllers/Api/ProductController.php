@@ -15,6 +15,9 @@ use App\Services\SeoScoreService;
 use App\Services\ShopifyProductPushService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class ProductController extends Controller
 {
@@ -260,9 +263,27 @@ class ProductController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            Log::error('Push to Shopify failed', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Push to Shopify failed. Please try again or reconnect your store.',
+            ], 422);
         }
 
-        $product->update(['shopify_product_id' => $result['shopify_product_id']]);
+        if (Schema::hasColumn('products', 'shopify_product_id')) {
+            try {
+                $product->update(['shopify_product_id' => $result['shopify_product_id']]);
+            } catch (QueryException $e) {
+                Log::warning('Could not save shopify_product_id on product', [
+                    'product_id' => $product->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         $message = $result['action'] === 'updated'
             ? 'Product updated on Shopify successfully.'

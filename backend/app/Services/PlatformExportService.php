@@ -226,7 +226,7 @@ class PlatformExportService
                 'type' => 'single_line_text_field',
             ];
         }
-        if ($metafields !== []) {
+        if ($metafields !== [] && ! $forUpdate) {
             $payload['metafields'] = $metafields;
         }
 

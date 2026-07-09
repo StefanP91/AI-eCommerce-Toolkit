@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Product;
 use App\Models\StoreConnection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ShopifyProductPushService
@@ -30,7 +31,15 @@ class ShopifyProductPushService
         $existingId = $this->resolveExistingProductId($host, $token, $product);
 
         if ($existingId) {
-            return $this->updateProduct($host, $token, $product, $existingId);
+            try {
+                return $this->updateProduct($host, $token, $product, $existingId);
+            } catch (\RuntimeException $e) {
+                if ($this->isMissingShopifyProductError($e)) {
+                    return $this->createProduct($host, $token, $product);
+                }
+
+                throw $e;
+            }
         }
 
         return $this->createProduct($host, $token, $product);
@@ -50,6 +59,9 @@ class ShopifyProductPushService
         }
 
         $created = $response->json('product');
+        if (! is_array($created) || empty($created['id'])) {
+            throw new \RuntimeException('Shopify returned an unexpected response after creating the product.');
+        }
 
         return [
             'action' => 'created',
@@ -77,6 +89,10 @@ class ShopifyProductPushService
         }
 
         $updated = $response->json('product');
+        if (! is_array($updated) || empty($updated['id'])) {
+            throw new \RuntimeException('Shopify returned an unexpected response after updating the product.');
+        }
+
         $this->updateSeoMetafields($host, $token, $shopifyProductId, $product);
 
         return [
@@ -90,7 +106,10 @@ class ShopifyProductPushService
 
     private function resolveExistingProductId(string $host, string $token, Product $product): ?int
     {
-        if ($product->shopify_product_id) {
+        if (
+            Schema::hasColumn('products', 'shopify_product_id')
+            && $product->shopify_product_id
+        ) {
             return (int) $product->shopify_product_id;
         }
 
@@ -227,6 +246,14 @@ class ShopifyProductPushService
         }
 
         return strtolower($host);
+    }
+
+    private function isMissingShopifyProductError(\RuntimeException $e): bool
+    {
+        $message = strtolower($e->getMessage());
+
+        return str_contains($message, 'not found')
+            || str_contains($message, '404');
     }
 
     private function formatShopifyError(mixed $error): string
