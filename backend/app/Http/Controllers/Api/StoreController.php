@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\StoreConnection;
+use App\Services\StoreApiCredentialsService;
 use App\Services\StoreScanService;
 use App\Services\StoreSitemapService;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,7 @@ class StoreController extends Controller
     public function __construct(
         private StoreSitemapService $sitemapService,
         private StoreScanService $scanService,
+        private StoreApiCredentialsService $apiCredentialsService,
     ) {}
 
     public function show(Request $request): JsonResponse
@@ -138,6 +140,71 @@ class StoreController extends Controller
         return response()->json(['message' => 'Store disconnected.']);
     }
 
+    public function connectApi(Request $request): JsonResponse
+    {
+        if ($request->user()->plan !== 'pro') {
+            return response()->json([
+                'message' => 'Automatic store publishing is available on the Pro plan.',
+            ], 403);
+        }
+
+        $store = StoreConnection::where('user_id', $request->user()->id)->first();
+        if (! $store) {
+            return response()->json(['message' => 'Connect your store URL first.'], 404);
+        }
+
+        $validated = $request->validate([
+            'platform' => ['required', 'in:shopify,woocommerce'],
+            'admin_access_token' => ['nullable', 'string', 'max:500'],
+            'consumer_key' => ['nullable', 'string', 'max:500'],
+            'consumer_secret' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $credentials = $this->apiCredentialsService->normalizeCredentials(
+            $validated['platform'],
+            $validated,
+        );
+
+        try {
+            $this->apiCredentialsService->validate($validated['platform'], $store->store_url, $credentials);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $store->update([
+            'platform' => $validated['platform'],
+            'api_credentials' => $credentials,
+            'api_connected_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Store API connected successfully. One-click push is coming soon.',
+            'store' => $this->formatStore($store->fresh()),
+        ]);
+    }
+
+    public function disconnectApi(Request $request): JsonResponse
+    {
+        $store = StoreConnection::where('user_id', $request->user()->id)->first();
+
+        if (! $store) {
+            return response()->json(['message' => 'No store connected yet.'], 404);
+        }
+
+        $store->update([
+            'platform' => null,
+            'api_credentials' => null,
+            'api_connected_at' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'Store API disconnected.',
+            'store' => $this->formatStore($store->fresh()),
+        ]);
+    }
+
     private function formatStore(StoreConnection $store): array
     {
         $optimizedCount = $store->products()->where('seo_score', '>=', 80)->count();
@@ -147,6 +214,10 @@ class StoreController extends Controller
             'id' => $store->id,
             'store_url' => $store->store_url,
             'has_visitor_password' => filled($store->store_password),
+            'platform' => $store->platform,
+            'has_api_connection' => $store->hasApiConnection(),
+            'api_connected_at' => $store->api_connected_at?->toIso8601String(),
+            'push_available' => false,
             'status' => $store->status,
             'product_count' => $store->product_count,
             'avg_seo_score' => $store->avg_seo_score,

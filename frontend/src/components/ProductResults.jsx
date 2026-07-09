@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, Button, Badge, Nav, Tab, Spinner } from 'react-bootstrap';
+import api from '../api/client';
 import SeoScore from './SeoScore';
 import ExportButtons from './ExportButtons';
+import PublishToStorePanel from './store/PublishToStorePanel';
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
@@ -43,6 +45,13 @@ function FieldCard({ title, value, multiline = false }) {
 export default function ProductResults({ result, onSave, saving = false }) {
   const { content, seo_score, seo_checks, product } = result;
   const isSaved = Boolean(product?.id);
+  const [store, setStore] = useState(null);
+
+  useEffect(() => {
+    api.get('/store')
+      .then((res) => setStore(res.data.store))
+      .catch(() => setStore(null));
+  }, []);
 
   const handleCopyAll = async () => {
     const allText = [
@@ -104,6 +113,12 @@ export default function ProductResults({ result, onSave, saving = false }) {
       )}
 
       <SeoScore score={seo_score} checks={seo_checks} />
+
+      <PublishToStorePanel
+        productId={isSaved ? product.id : null}
+        onCopyAll={handleCopyAll}
+        store={store}
+      />
 
       <Tab.Container defaultActiveKey="content">
         <Nav variant="tabs" className="mb-3">

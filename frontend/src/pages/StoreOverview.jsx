@@ -14,6 +14,8 @@ import {
 } from 'react-bootstrap';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import PublishToStorePanel from '../components/store/PublishToStorePanel';
+import StoreApiSetup from '../components/store/StoreApiSetup';
 
 function scoreBadge(score) {
   if (score == null) return 'secondary';
@@ -353,6 +355,16 @@ export default function StoreOverview() {
               </Card>
             </Col>
           </Row>
+
+          {isPro && (
+            <>
+              <PublishToStorePanel store={store} compact />
+              <StoreApiSetup
+                store={store}
+                onUpdated={(updatedStore) => setStore(updatedStore)}
+              />
+            </>
+          )}
 
           <Card className="border-0 shadow-sm">
             <Card.Header className="bg-white fw-semibold d-flex justify-content-between align-items-center">

@@ -61,6 +61,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/store', [StoreController::class, 'connect']);
     Route::post('/store/scan', [StoreController::class, 'scan']);
     Route::get('/store/products', [StoreController::class, 'products']);
+    Route::post('/store/api', [StoreController::class, 'connectApi']);
+    Route::delete('/store/api', [StoreController::class, 'disconnectApi']);
     Route::delete('/store', [StoreController::class, 'destroy']);
 
         Route::middleware('admin')->prefix('admin')->group(function () {
