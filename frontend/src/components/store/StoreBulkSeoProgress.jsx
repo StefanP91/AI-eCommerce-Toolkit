@@ -1,4 +1,4 @@
-import { Alert, Card, ProgressBar, Spinner } from 'react-bootstrap';
+import { Alert, Button, Card, ProgressBar, Spinner } from 'react-bootstrap';
 
 export default function StoreBulkSeoProgress({
   mode,
@@ -7,12 +7,22 @@ export default function StoreBulkSeoProgress({
   currentLabel,
   error,
   onDismiss,
+  canPush = false,
+  pushableCount = 0,
+  onPush = null,
+  pushRunning = false,
+  completedAction = null,
 }) {
-  if (!mode || items.length === 0) return null;
+  if (items.length === 0) return null;
 
+  const activeMode = mode || completedAction || 'audit';
   const done = currentIndex >= items.length;
   const progress = Math.round((Math.min(currentIndex, items.length) / items.length) * 100);
-  const title = mode === 'fix' ? 'Bulk SEO fix' : 'Bulk live audit';
+  const title = activeMode === 'fix'
+    ? 'Bulk SEO fix'
+    : activeMode === 'push'
+      ? 'Bulk push to Shopify'
+      : 'Bulk live audit';
 
   return (
     <Card className="border-0 shadow-sm mb-3 mx-3 mt-3">
@@ -28,10 +38,21 @@ export default function StoreBulkSeoProgress({
             : `Processing ${currentIndex + 1} of ${items.length}: ${currentLabel}`}
         </p>
         {error && <Alert variant="warning" className="py-2 small mb-2">{error}</Alert>}
+        {done && canPush && pushableCount > 0 && onPush && completedAction === 'fix' && (
+          <Button
+            variant="primary"
+            size="sm"
+            className="me-2"
+            onClick={onPush}
+            disabled={pushRunning}
+          >
+            {pushRunning ? 'Pushing...' : `Push ${pushableCount} to Shopify`}
+          </Button>
+        )}
         {done && (
-          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onDismiss}>
+          <Button variant="outline-secondary" size="sm" onClick={onDismiss}>
             Dismiss
-          </button>
+          </Button>
         )}
       </Card.Body>
     </Card>

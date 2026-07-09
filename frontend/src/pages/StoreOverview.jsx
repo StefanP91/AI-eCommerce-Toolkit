@@ -39,6 +39,10 @@ function matchesProductSearch(product, query) {
   return name.includes(q) || url.includes(q) || slug.includes(q);
 }
 
+function normalizeUrlKey(url) {
+  return (url || '').replace(/\/$/, '').toLowerCase().split('?')[0];
+}
+
 function scoreBadge(score) {
   if (score == null) return 'secondary';
   if (score >= 90) return 'success';
@@ -124,6 +128,8 @@ export default function StoreOverview() {
   const [bulkIndex, setBulkIndex] = useState(0);
   const [bulkError, setBulkError] = useState('');
   const [selectionNotice, setSelectionNotice] = useState('');
+  const [bulkProjectByUrl, setBulkProjectByUrl] = useState({});
+  const [bulkCompletedAction, setBulkCompletedAction] = useState(null);
 
   const isPro = plan === 'pro';
 
@@ -364,6 +370,7 @@ export default function StoreOverview() {
     if (selectedProducts.length === 0) return;
 
     setBulkError('');
+    setBulkCompletedAction(null);
     setBulkMode('audit');
     setBulkItems(selectedProducts);
     setBulkIndex(0);
@@ -382,7 +389,7 @@ export default function StoreOverview() {
         }
       }
       setBulkIndex(selectedProducts.length);
-      setSelectedIds(new Set());
+      setBulkCompletedAction('audit');
     } catch (err) {
       setBulkError(err.response?.data?.message || 'Bulk audit failed. Please try again.');
       setBulkIndex(selectedProducts.length);
@@ -404,6 +411,7 @@ export default function StoreOverview() {
     }
 
     setBulkError('');
+    setBulkCompletedAction(null);
     setBulkMode('fix');
     setBulkItems(targets);
     setBulkIndex(0);
@@ -420,13 +428,18 @@ export default function StoreOverview() {
           ...GENERATE_DEFAULTS,
         });
 
-        await api.post('/products', {
+        const saveRes = await api.post('/products', {
           ...generateRes.data.input,
           generated_content: generateRes.data.content,
           seo_score: generateRes.data.seo_score,
           seo_checks: generateRes.data.seo_checks,
           history_id: generateRes.data.history_id,
         });
+
+        setBulkProjectByUrl((prev) => ({
+          ...prev,
+          [normalizeUrlKey(product.url)]: saveRes.data.product.id,
+        }));
 
         notifyCreditsUpdated();
 
@@ -441,7 +454,7 @@ export default function StoreOverview() {
       }
 
       setBulkIndex(targets.length);
-      setSelectedIds(new Set());
+      setBulkCompletedAction('fix');
     } catch (err) {
       setBulkError(err.response?.data?.message || 'Bulk SEO fix failed. Please try again.');
       setBulkIndex(targets.length);
@@ -454,6 +467,75 @@ export default function StoreOverview() {
     setBulkItems([]);
     setBulkIndex(0);
     setBulkError('');
+    setBulkCompletedAction(null);
+  };
+
+  const getProjectIdForStoreProduct = (storeProduct) => (
+    bulkProjectByUrl[normalizeUrlKey(storeProduct.url)]
+  );
+
+  const resolvePushTargets = (storeProducts) => storeProducts
+    .map((storeProduct) => ({
+      storeProduct,
+      projectId: getProjectIdForStoreProduct(storeProduct),
+    }))
+    .filter((entry) => entry.projectId);
+
+  const selectedPushableCount = resolvePushTargets(selectedProducts).length;
+  const bulkPushableCount = resolvePushTargets(bulkItems).length;
+
+  const handleBulkPush = async (storeProducts) => {
+    const targets = resolvePushTargets(storeProducts);
+
+    if (!store?.push_available) {
+      setError('Connect your Shopify store API first in the guided setup below.');
+      return;
+    }
+
+    if (targets.length === 0) {
+      setSelectionNotice('Run Fix SEO on selected products first, then push to Shopify.');
+      return;
+    }
+
+    if (!window.confirm(
+      `Push ${targets.length} product${targets.length === 1 ? '' : 's'} to Shopify?`,
+    )) {
+      return;
+    }
+
+    setBulkError('');
+    setBulkCompletedAction(null);
+    setBulkMode('push');
+    setBulkItems(targets.map((entry) => entry.storeProduct));
+    setBulkIndex(0);
+
+    try {
+      for (let index = 0; index < targets.length; index += 1) {
+        const { storeProduct, projectId } = targets[index];
+        setBulkIndex(index);
+
+        await api.post(`/products/${projectId}/push-to-store`);
+
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+
+        const auditRes = await api.post('/store/audit-url', {
+          product_url: storeProduct.url,
+          bust_cache: true,
+        });
+        mergeStoreProduct(auditRes.data.store_product);
+        if (auditRes.data.store) {
+          setStore(auditRes.data.store);
+        }
+      }
+
+      setBulkIndex(targets.length);
+      setBulkCompletedAction('push');
+    } catch (err) {
+      setBulkError(err.response?.data?.message || 'Bulk push to Shopify failed. Please try again.');
+      setBulkIndex(targets.length);
+    } finally {
+      setBulkMode(null);
+    }
   };
 
   if (loading) {
@@ -662,12 +744,17 @@ export default function StoreOverview() {
 
               {bulkItems.length > 0 && (
                 <StoreBulkSeoProgress
-                  mode={bulkMode || 'audit'}
+                  mode={bulkMode}
                   items={bulkItems}
                   currentIndex={bulkIndex}
                   currentLabel={bulkItems[bulkIndex]?.product_name || bulkItems[bulkIndex]?.url || ''}
                   error={bulkError}
                   onDismiss={dismissBulkProgress}
+                  canPush={Boolean(store?.push_available)}
+                  pushableCount={bulkPushableCount}
+                  onPush={() => handleBulkPush(bulkItems)}
+                  pushRunning={bulkMode === 'push'}
+                  completedAction={bulkCompletedAction}
                 />
               )}
 
@@ -689,6 +776,9 @@ export default function StoreOverview() {
                     onClearSelection={() => setSelectedIds(new Set())}
                     onBulkAudit={handleBulkAudit}
                     onBulkFix={handleBulkFix}
+                    onBulkPush={() => handleBulkPush(selectedProducts)}
+                    pushAvailable={Boolean(store?.push_available)}
+                    pushableCount={selectedPushableCount}
                     bulkRunning={Boolean(bulkMode)}
                     bulkMode={bulkMode}
                     allVisibleSelected={allVisibleSelected}

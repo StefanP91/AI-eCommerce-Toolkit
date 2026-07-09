@@ -20,6 +20,9 @@ export default function StoreProductTableToolbar({
   onClearSelection,
   onBulkAudit,
   onBulkFix,
+  onBulkPush,
+  pushAvailable = false,
+  pushableCount = 0,
   bulkRunning = false,
   bulkMode = null,
   allVisibleSelected = false,
@@ -91,6 +94,17 @@ export default function StoreProductTableToolbar({
             >
               {bulkMode === 'fix' ? 'Fixing...' : 'Fix SEO for selected'}
             </Button>
+            {pushAvailable && (
+              <Button
+                variant="success"
+                size="sm"
+                onClick={onBulkPush}
+                disabled={bulkRunning || pushableCount === 0}
+                title={pushableCount === 0 ? 'Run Fix SEO first on selected products' : undefined}
+              >
+                {bulkMode === 'push' ? 'Pushing...' : `Push to Shopify (${pushableCount})`}
+              </Button>
+            )}
           </div>
         </div>
       )}
