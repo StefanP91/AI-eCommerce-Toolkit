@@ -303,7 +303,7 @@ class PlatformExportService
         }
 
         $path = parse_url($url, PHP_URL_PATH) ?? '';
-        if (preg_match('#/products/([^/?#]+)#', $path, $matches)) {
+        if (preg_match('~/products/([^/?#]+)~', $path, $matches)) {
             return $matches[1];
         }
 
