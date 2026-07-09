@@ -1,4 +1,5 @@
 # Secrets & credentials
+TXT/
 admin-credentials.txt
 render-db-url.txt
 *.pem
