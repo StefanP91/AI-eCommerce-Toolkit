@@ -28,8 +28,8 @@ export default function StoreProductTableToolbar({
 
   return (
     <div className="p-3 border-bottom bg-white">
-      <div className="d-flex flex-wrap align-items-center gap-3 mb-3">
-        <InputGroup style={{ maxWidth: 420 }} className="flex-grow-1">
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <InputGroup style={{ flex: '1 1 240px', maxWidth: 420 }}>
           <InputGroup.Text>🔍</InputGroup.Text>
           <Form.Control
             type="search"
@@ -39,28 +39,28 @@ export default function StoreProductTableToolbar({
             aria-label="Search products"
           />
         </InputGroup>
-        <small className="text-muted">
-          {searchQuery.trim()
-            ? `${filteredCount} of ${totalCount} shown`
-            : `${totalCount} products`}
-        </small>
+        <div className="d-flex align-items-center gap-2 ms-auto flex-wrap">
+          <small className="text-muted">Sort by SEO:</small>
+          <ButtonGroup size="sm">
+            {SEO_SORT_OPTIONS.map((option) => (
+              <Button
+                key={option.value}
+                variant={seoSort === option.value ? 'primary' : 'outline-secondary'}
+                onClick={() => onSeoSortChange(option.value)}
+                disabled={bulkRunning}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </ButtonGroup>
+        </div>
       </div>
 
-      <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-        <small className="text-muted me-1">Sort by SEO:</small>
-        <ButtonGroup size="sm">
-          {SEO_SORT_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              variant={seoSort === option.value ? 'primary' : 'outline-secondary'}
-              onClick={() => onSeoSortChange(option.value)}
-              disabled={bulkRunning}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </ButtonGroup>
-      </div>
+      <small className="text-muted d-block mb-2">
+        {searchQuery.trim()
+          ? `${filteredCount} of ${totalCount} shown`
+          : `${totalCount} products`}
+      </small>
 
       {selectedCount > 0 && (
         <div className="d-flex flex-wrap align-items-center gap-2 p-2 rounded bg-light border">
