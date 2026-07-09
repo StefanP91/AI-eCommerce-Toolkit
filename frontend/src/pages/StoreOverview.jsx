@@ -7,6 +7,7 @@ import {
   Card,
   Col,
   Form,
+  InputGroup,
   Row,
   Spinner,
   Table,
@@ -19,6 +20,61 @@ function scoreBadge(score) {
   if (score >= 80) return 'success';
   if (score >= 60) return 'warning';
   return 'danger';
+}
+
+function EyeIcon({ slashed = false }) {
+  if (slashed) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M3 3l18 18M10.58 10.58A2 2 0 0 0 12 15a2 2 0 0 0 1.42-.58M9.88 4.24A10.94 10.94 0 0 1 12 4c5 0 9.27 3.11 11 8-1.02 2.79-2.97 5.08-5.45 6.45M6.61 6.61C4.55 7.88 2.97 9.79 2 12c1.73 4.89 6 8 10 8 1.55 0 3.03-.35 4.36-.97"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
+function VisitorPasswordInput({ value, onChange, placeholder, id }) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <InputGroup>
+      <Form.Control
+        id={id}
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      <Button
+        variant="outline-secondary"
+        type="button"
+        onClick={() => setVisible((current) => !current)}
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        title={visible ? 'Hide password' : 'Show password'}
+      >
+        <EyeIcon slashed={visible} />
+      </Button>
+    </InputGroup>
+  );
 }
 
 export default function StoreOverview() {
@@ -186,12 +242,11 @@ export default function StoreOverview() {
                     <Form.Label>
                       Visitor password <span className="text-muted fw-normal">(optional)</span>
                     </Form.Label>
-                    <Form.Control
-                      type="password"
+                    <VisitorPasswordInput
+                      id="connect-visitor-password"
                       value={visitorPassword}
                       onChange={(e) => setVisitorPassword(e.target.value)}
                       placeholder="Development store password"
-                      autoComplete="off"
                     />
                     <Form.Text className="text-muted">
                       If your store uses a visitor password, enter it here.
@@ -243,12 +298,11 @@ export default function StoreOverview() {
                 </p>
                 <Row className="g-2 align-items-end">
                   <Col md={6}>
-                    <Form.Control
-                      type="password"
+                    <VisitorPasswordInput
+                      id="rescan-visitor-password"
                       value={visitorPassword}
                       onChange={(e) => setVisitorPassword(e.target.value)}
                       placeholder={store.has_visitor_password ? 'Saved — enter a new password to update' : 'Enter visitor password'}
-                      autoComplete="off"
                     />
                   </Col>
                   <Col md="auto">
