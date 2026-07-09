@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /login
+Allow: /register
+
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /generator
+Disallow: /settings
+Disallow: /projects
+Disallow: /history
+
+Sitemap: https://ai-ecommerce-suite.netlify.app/sitemap.xml
