@@ -5,7 +5,7 @@ export default function LegalLayout({ title, children }) {
   return (
     <Container className="py-5" style={{ maxWidth: 800 }}>
       <div className="mb-4">
-        <Link to="/login" className="text-decoration-none small">
+        <Link to="/" className="text-decoration-none small">
           ← Back to AI Commerce Suite
         </Link>
       </div>
