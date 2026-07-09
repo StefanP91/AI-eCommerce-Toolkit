@@ -184,6 +184,19 @@ class ShopifyProductPushService
         if ($metaDescription !== '') {
             $this->upsertProductMetafield($host, $token, $shopifyProductId, 'description_tag', $metaDescription);
         }
+
+        $legacyPayload = array_filter([
+            'id' => $shopifyProductId,
+            'metafields_global_title_tag' => $metaTitle !== '' ? $metaTitle : null,
+            'metafields_global_description_tag' => $metaDescription !== '' ? $metaDescription : null,
+        ], fn ($value) => $value !== null);
+
+        if (count($legacyPayload) > 1) {
+            $this->shopifyRequest($token)
+                ->put($this->apiUrl($host, "products/{$shopifyProductId}.json"), [
+                    'product' => $legacyPayload,
+                ]);
+        }
     }
 
     private function updateProductImageAlt(string $host, string $token, int $shopifyProductId, Product $product): void

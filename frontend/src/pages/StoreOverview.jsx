@@ -98,7 +98,12 @@ export default function StoreOverview() {
 
   const isPro = plan === 'pro';
 
-  const loadStore = async ({ store: storeData = null, products: productsData = null, mergeProduct = null } = {}) => {
+  const loadStore = async ({
+    store: storeData = null,
+    products: productsData = null,
+    mergeProduct = null,
+    skipProductsRefetch = false,
+  } = {}) => {
     try {
       let nextStore = storeData;
       if (!nextStore) {
@@ -123,10 +128,10 @@ export default function StoreOverview() {
 
           return item;
         }));
-      } else if (nextStore) {
+      } else if (nextStore && !skipProductsRefetch) {
         const productsRes = await api.get('/store/products');
         setProducts(productsRes.data.data || []);
-      } else {
+      } else if (!nextStore) {
         setProducts([]);
       }
 

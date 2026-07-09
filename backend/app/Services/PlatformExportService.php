@@ -201,6 +201,14 @@ class PlatformExportService
             $payload['product_type'] = $fields['category'];
         }
 
+        if ($fields['meta_title'] !== '') {
+            $payload['metafields_global_title_tag'] = $fields['meta_title'];
+        }
+
+        if ($fields['meta_description'] !== '') {
+            $payload['metafields_global_description_tag'] = $fields['meta_description'];
+        }
+
         if (! $forUpdate) {
             $urlHandle = $this->handleFromUrl($product->product_url);
             if ($urlHandle !== null) {

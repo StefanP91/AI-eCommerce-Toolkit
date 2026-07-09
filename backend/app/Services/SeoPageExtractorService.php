@@ -43,12 +43,31 @@ class SeoPageExtractorService
         if (strlen($h1 ?? '') < 20 && strlen($ogTitle ?? '') >= 20) {
             $h1 = $ogTitle;
         }
+
+        $jsonLdProduct = $this->extractPrimaryJsonLdProduct($html);
+
+        if (strlen($pageTitle ?? '') < 30 && strlen($jsonLdProduct['name'] ?? '') >= 30) {
+            $pageTitle = $jsonLdProduct['name'];
+        }
+
+        if (strlen($metaDescription ?? '') < 120 && strlen($jsonLdProduct['description'] ?? '') >= 120) {
+            $metaDescription = $jsonLdProduct['description'];
+        }
+
+        if (strlen($h1 ?? '') < 20 && strlen($jsonLdProduct['name'] ?? '') >= 20) {
+            $h1 = $jsonLdProduct['name'];
+        }
+
         $ogImage = $this->matchMetaProperty($html, 'og:image');
         $canonical = $this->matchCanonical($html);
         $hasViewport = (bool) preg_match('/<meta[^>]+name=["\']viewport["\']/i', $html);
         $hasProductSchema = $this->hasProductSchema($html);
         $images = $this->extractImages($html);
         $description = $this->extractDescription($html);
+
+        if (strlen($description) < 150 && strlen($jsonLdProduct['description'] ?? '') >= 150) {
+            $description = $this->cleanText(strip_tags($jsonLdProduct['description']));
+        }
 
         $productName = $h1
             ?? $ogTitle
@@ -154,6 +173,52 @@ class SeoPageExtractorService
         }
 
         return '';
+    }
+
+    private function extractPrimaryJsonLdProduct(string $html): array
+    {
+        if (! preg_match_all('/<script[^>]+type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/is', $html, $matches)) {
+            return [];
+        }
+
+        foreach ($matches[1] as $json) {
+            $decoded = json_decode(trim($json), true);
+            if (! is_array($decoded)) {
+                continue;
+            }
+
+            foreach ($this->collectJsonLdProducts($decoded) as $product) {
+                if (! empty($product['name']) || ! empty($product['description'])) {
+                    return $product;
+                }
+            }
+        }
+
+        return [];
+    }
+
+    private function collectJsonLdProducts(array $node): array
+    {
+        $products = [];
+
+        if (isset($node['@graph']) && is_array($node['@graph'])) {
+            foreach ($node['@graph'] as $item) {
+                if (is_array($item)) {
+                    $products = array_merge($products, $this->collectJsonLdProducts($item));
+                }
+            }
+        }
+
+        $type = $node['@type'] ?? null;
+        $types = is_array($type) ? $type : [$type];
+        if (in_array('Product', $types, true)) {
+            $products[] = [
+                'name' => $this->cleanText((string) ($node['name'] ?? '')),
+                'description' => $this->cleanText(strip_tags((string) ($node['description'] ?? ''))),
+            ];
+        }
+
+        return $products;
     }
 
     private function hasProductSchema(string $html): bool

@@ -51,13 +51,14 @@ export default function StoreProductAuditFix({
 
   useEffect(() => {
     runAudit();
-  }, [product.url]);
+  }, [product.id]);
 
   const syncAuditResult = async (data) => {
     setAuditResult(data);
     await onStoreRefresh?.({
       store: data.store ?? null,
       mergeProduct: data.store_product ?? null,
+      skipProductsRefetch: true,
     });
   };
 
@@ -72,6 +73,10 @@ export default function StoreProductAuditFix({
     setAuditStep(0);
 
     try {
+      if (afterPush) {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+
       const res = await api.post('/store/audit-url', {
         product_url: product.url,
         bust_cache: true,
@@ -79,6 +84,7 @@ export default function StoreProductAuditFix({
       await syncAuditResult(res.data);
       if (afterPush) {
         setLivePageAudit(res.data);
+        setAuditResult((previous) => previous ?? res.data);
         setPhase('done');
       } else {
         setPhase('audit_done');
@@ -122,11 +128,8 @@ export default function StoreProductAuditFix({
     }
   };
 
-  const handlePushSuccess = async (data) => {
+  const handlePushSuccess = async () => {
     await runAudit(true);
-    await onStoreRefresh?.({
-      store: data?.store ?? null,
-    });
   };
 
   const canFix = auditResult && (auditResult.score < 100 || auditResult.recommendations?.length > 0);

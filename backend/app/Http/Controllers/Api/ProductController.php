@@ -311,43 +311,10 @@ class ProductController extends Controller
             ? 'Product updated on Shopify successfully.'
             : 'Product published to Shopify successfully.';
 
-        $auditUrl = $product->product_url;
-        if (! $auditUrl && ! empty($result['handle'])) {
-            $auditUrl = rtrim($store->store_url, '/').'/products/'.$result['handle'];
-        }
-
-        $storeProduct = null;
-        $storeRescan = 'skipped';
-
-        if ($auditUrl) {
-            try {
-                sleep(3);
-                $storeProduct = $this->storeScanService->rescanProductUrl($store->fresh(), $auditUrl);
-                $storeRescan = $storeProduct && $storeProduct->status === 'scanned' ? 'completed' : 'failed';
-            } catch (\Throwable $e) {
-                Log::warning('Product rescan after Shopify push failed', [
-                    'product_id' => $product->id,
-                    'url' => $auditUrl,
-                    'error' => $e->getMessage(),
-                ]);
-                $storeRescan = 'failed';
-            }
-        }
-
-        if ($storeRescan === 'completed') {
-            $message .= ' Live page score updated.';
-        }
-
-        $store = $store->fresh();
-
         return response()->json([
             'message' => $message,
             'shopify' => $result,
-            'store_rescan' => $storeRescan,
-            'store' => $store->toApiArray(),
-            'store_product' => $storeProduct?->only([
-                'id', 'url', 'product_name', 'seo_score', 'status',
-            ]),
+            'store' => $store->fresh()->toApiArray(),
         ]);
     }
 

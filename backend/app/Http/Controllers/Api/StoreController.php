@@ -143,6 +143,9 @@ class StoreController extends Controller
         }
 
         $storeProduct = $this->scanService->findStoreProductByUrl($store, $validated['product_url']);
+        if (! $storeProduct) {
+            $storeProduct = $this->findStoreProductByUrlCandidates($store, $validated['product_url']);
+        }
         if ($storeProduct) {
             $storeProduct->update([
                 'product_name' => $result['extracted']['product_name'] ?? $storeProduct->product_name,
@@ -166,6 +169,26 @@ class StoreController extends Controller
             ]),
             'store' => $store->fresh()->toApiArray(),
         ]);
+    }
+
+    private function findStoreProductByUrlCandidates(StoreConnection $store, string $url): ?\App\Models\StoreProduct
+    {
+        $candidates = array_values(array_unique(array_filter([
+            $url,
+            preg_replace('/[?&]_acs=\d+/', '', $url) ?: null,
+            preg_replace('/^http:\/\//i', 'https://', $url),
+            preg_replace('/^https:\/\/www\./i', 'https://', $url),
+            preg_replace('/^https:\/\//i', 'https://www.', $url),
+        ])));
+
+        foreach ($candidates as $candidate) {
+            $found = $this->scanService->findStoreProductByUrl($store, $candidate);
+            if ($found) {
+                return $found;
+            }
+        }
+
+        return null;
     }
 
     public function products(Request $request): JsonResponse
