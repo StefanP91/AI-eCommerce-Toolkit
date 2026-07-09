@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\GenerationHistory;
 use App\Models\Product;
 use App\Services\AiProductService;
+use App\Services\PlatformExportService;
 use App\Services\ProductExportService;
 use App\Services\SeoContentOptimizerService;
 use App\Services\SeoScoreService;
@@ -22,6 +23,7 @@ class ProductController extends Controller
         private SeoScoreService $seoService,
         private SeoContentOptimizerService $optimizer,
         private ProductExportService $exportService,
+        private PlatformExportService $platformExportService,
     ) {}
 
     public function generate(Request $request): JsonResponse
@@ -187,6 +189,21 @@ class ProductController extends Controller
                 'filename' => 'product-'.$product->id.'.csv',
                 'mime' => 'text/csv',
             ]),
+            'shopify' => response()->json([
+                'content' => $this->platformExportService->toShopifyCsv($product),
+                'filename' => 'shopify-product-'.$product->id.'.csv',
+                'mime' => 'text/csv',
+            ]),
+            'woocommerce' => response()->json([
+                'content' => $this->platformExportService->toWooCommerceCsv($product),
+                'filename' => 'woocommerce-product-'.$product->id.'.csv',
+                'mime' => 'text/csv',
+            ]),
+            'bigcommerce' => response()->json([
+                'content' => $this->platformExportService->toBigCommerceCsv($product),
+                'filename' => 'bigcommerce-product-'.$product->id.'.csv',
+                'mime' => 'text/csv',
+            ]),
             'excel' => response()->json([
                 'content' => $this->exportService->toExcelXml($product),
                 'filename' => 'product-'.$product->id.'.xls',
@@ -225,9 +242,28 @@ class ProductController extends Controller
             ]);
         }
 
+        $bulk = match ($format) {
+            'shopify' => [
+                'content' => $this->platformExportService->bulkShopifyCsv($products),
+                'filename' => 'shopify-products.csv',
+            ],
+            'woocommerce' => [
+                'content' => $this->platformExportService->bulkWooCommerceCsv($products),
+                'filename' => 'woocommerce-products.csv',
+            ],
+            'bigcommerce' => [
+                'content' => $this->platformExportService->bulkBigCommerceCsv($products),
+                'filename' => 'bigcommerce-products.csv',
+            ],
+            default => [
+                'content' => $this->exportService->bulkCsv($products),
+                'filename' => 'all-products.csv',
+            ],
+        };
+
         return response()->json([
-            'content' => $this->exportService->bulkCsv($products),
-            'filename' => 'all-products.'.($format === 'excel' ? 'csv' : 'csv'),
+            'content' => $bulk['content'],
+            'filename' => $bulk['filename'],
             'mime' => 'text/csv',
         ]);
     }

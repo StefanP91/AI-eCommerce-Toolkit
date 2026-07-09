@@ -104,6 +104,7 @@ export default function Dashboard() {
         <Card.Body>
           <div className="d-flex flex-wrap gap-2">
             {[
+              { to: '/store', label: '🏪 Store Overview' },
               { to: '/generator', label: '✨ AI Generator' },
               { to: '/bulk-upload', label: '📤 Bulk Upload' },
               { to: '/seo-audit', label: '📋 SEO Audit' },

@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\HistoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SettingsController;
+use App\Http\Controllers\Api\StoreController;
 use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\ToolController;
 use Illuminate\Support\Facades\Route;
@@ -55,6 +56,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::put('/settings', [SettingsController::class, 'update']);
     Route::post('/support', [SupportController::class, 'store']);
+
+    Route::get('/store', [StoreController::class, 'show']);
+    Route::post('/store', [StoreController::class, 'connect']);
+    Route::post('/store/scan', [StoreController::class, 'scan']);
+    Route::get('/store/products', [StoreController::class, 'products']);
+    Route::delete('/store', [StoreController::class, 'destroy']);
 
         Route::middleware('admin')->prefix('admin')->group(function () {
             Route::get('/stats', [AdminController::class, 'stats']);

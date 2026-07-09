@@ -6,6 +6,7 @@ import BrandLogo from './BrandLogo';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { to: '/store', label: 'Store Overview', icon: '🏪' },
   { to: '/generator', label: 'AI Generator', icon: '✨' },
   { to: '/bulk-upload', label: 'Bulk Upload', icon: '📤' },
   { to: '/title-generator', label: 'Title Generator', icon: '📝' },

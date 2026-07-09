@@ -24,6 +24,7 @@ import Admin from './pages/Admin';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import Support from './pages/Support';
+import StoreOverview from './pages/StoreOverview';
 import Landing from './pages/Landing';
 import PageVisitTracker from './components/PageVisitTracker';
 
@@ -43,6 +44,7 @@ export default function App() {
 
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/store" element={<StoreOverview />} />
             <Route path="/generator" element={<Generator />} />
             <Route path="/bulk-upload" element={<BulkUpload />} />
             <Route path="/title-generator" element={<TitleGenerator />} />

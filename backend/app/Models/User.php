@@ -67,6 +67,11 @@ class User extends Authenticatable
         return $this->hasMany(GenerationHistory::class);
     }
 
+    public function storeConnection(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(StoreConnection::class);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';

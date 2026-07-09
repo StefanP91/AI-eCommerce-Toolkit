@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import api from '../api/client';
 import SeoScore from '../components/SeoScore';
@@ -13,9 +14,10 @@ const GENERATE_DEFAULTS = {
 };
 
 export default function SeoAudit() {
+  const [searchParams] = useSearchParams();
   const [auditType, setAuditType] = useState('url');
   const [form, setForm] = useState({
-    product_url: '',
+    product_url: searchParams.get('url') || '',
     product_name: '',
     page_title: '',
     meta_description: '',

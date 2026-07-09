@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Card, Table, Badge, Button, Spinner, Dropdown } from 'react-bootstrap';
 import api from '../api/client';
 import { downloadAllProjects } from '../utils/download';
+import { PLATFORM_EXPORTS } from '../constants/platformExports';
 
 export default function Projects() {
   const [projects, setProjects] = useState([]);
@@ -50,8 +51,16 @@ export default function Projects() {
         <Dropdown>
           <Dropdown.Toggle variant="outline-primary" size="sm">Export All</Dropdown.Toggle>
           <Dropdown.Menu>
+            <Dropdown.Header>General</Dropdown.Header>
             <Dropdown.Item onClick={() => downloadAllProjects('csv')}>CSV</Dropdown.Item>
             <Dropdown.Item onClick={() => downloadAllProjects('excel')}>Excel</Dropdown.Item>
+            <Dropdown.Divider />
+            <Dropdown.Header>Import to store</Dropdown.Header>
+            {PLATFORM_EXPORTS.map((item) => (
+              <Dropdown.Item key={item.format} onClick={() => downloadAllProjects(item.format)}>
+                {item.label}
+              </Dropdown.Item>
+            ))}
           </Dropdown.Menu>
         </Dropdown>
       </div>
