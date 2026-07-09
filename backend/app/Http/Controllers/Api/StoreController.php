@@ -31,6 +31,12 @@ class StoreController extends Controller
 
     public function connect(Request $request): JsonResponse
     {
+        if ($request->user()->plan !== 'pro') {
+            return response()->json([
+                'message' => 'Store connection is available on the Pro plan.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'store_url' => ['required', 'string', 'max:500'],
         ]);
@@ -64,6 +70,12 @@ class StoreController extends Controller
 
     public function scan(Request $request): JsonResponse
     {
+        if ($request->user()->plan !== 'pro') {
+            return response()->json([
+                'message' => 'Store scanning is available on the Pro plan.',
+            ], 403);
+        }
+
         $store = StoreConnection::where('user_id', $request->user()->id)->first();
 
         if (! $store) {

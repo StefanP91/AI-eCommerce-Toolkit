@@ -12,6 +12,7 @@ import {
   Table,
 } from 'react-bootstrap';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 function scoreBadge(score) {
   if (score == null) return 'secondary';
@@ -21,6 +22,8 @@ function scoreBadge(score) {
 }
 
 export default function StoreOverview() {
+  const { user } = useAuth();
+  const isPro = user?.plan === 'pro';
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
   const [storeUrl, setStoreUrl] = useState('');
@@ -30,20 +33,23 @@ export default function StoreOverview() {
   const [error, setError] = useState('');
 
   const loadStore = async () => {
-    const res = await api.get('/store');
-    setStore(res.data.store);
-    if (res.data.store) {
-      const productsRes = await api.get('/store/products');
-      setProducts(productsRes.data.data || []);
-    } else {
+    try {
+      const res = await api.get('/store');
+      setStore(res.data.store);
+      if (res.data.store) {
+        const productsRes = await api.get('/store/products');
+        setProducts(productsRes.data.data || []);
+      } else {
+        setProducts([]);
+      }
+    } catch {
+      setStore(null);
       setProducts([]);
     }
   };
 
   useEffect(() => {
-    loadStore()
-      .catch(() => setError('Failed to load store overview.'))
-      .finally(() => setLoading(false));
+    loadStore().finally(() => setLoading(false));
   }, []);
 
   const handleConnect = async (e) => {
@@ -126,6 +132,7 @@ export default function StoreOverview() {
       {error && <Alert variant="danger">{error}</Alert>}
 
       {!store ? (
+        isPro ? (
         <Card className="border-0 shadow-sm">
           <Card.Body className="p-4">
             <h5 className="mb-3">Connect your store</h5>
@@ -163,6 +170,20 @@ export default function StoreOverview() {
             </Form>
           </Card.Body>
         </Card>
+        ) : (
+        <Card className="border-0 shadow-sm">
+          <Card.Body className="p-4 text-center">
+            <Badge bg="primary" className="mb-3">Pro Feature</Badge>
+            <h5 className="mb-3">Connect your store with Pro</h5>
+            <p className="text-muted mb-4">
+              Scan your public product pages, track SEO scores, and jump straight into audits from one dashboard.
+            </p>
+            <Link to="/pricing">
+              <Button variant="primary">Upgrade to Pro</Button>
+            </Link>
+          </Card.Body>
+        </Card>
+        )
       ) : (
         <>
           {store.status === 'error' && store.error_message && (
