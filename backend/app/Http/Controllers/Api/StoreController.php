@@ -136,13 +136,52 @@ class StoreController extends Controller
             $result = $this->storeContextAudit->auditUrlForUser(
                 $request->user(),
                 $validated['product_url'],
-                (bool) ($validated['bust_cache'] ?? false),
+                (bool) ($validated['bust_cache'] ?? true),
             );
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        return response()->json($result);
+        $storeProduct = $this->findStoreProductByUrl($store, $validated['product_url']);
+        if ($storeProduct) {
+            $storeProduct->update([
+                'product_name' => $result['extracted']['product_name'] ?? $storeProduct->product_name,
+                'seo_score' => $result['score'],
+                'seo_checks' => $result['checks'],
+                'status' => 'scanned',
+                'error_message' => null,
+                'last_scanned_at' => now(),
+            ]);
+
+            $avgScore = $store->products()->whereNotNull('seo_score')->avg('seo_score');
+            $store->update([
+                'avg_seo_score' => $avgScore !== null ? (int) round($avgScore) : null,
+            ]);
+        }
+
+        return response()->json([
+            ...$result,
+            'store_product' => $storeProduct?->fresh()?->only([
+                'id', 'url', 'product_name', 'seo_score', 'status',
+            ]),
+            'store' => $store->fresh()->toApiArray(),
+        ]);
+    }
+
+    private function findStoreProductByUrl(StoreConnection $store, string $url): ?\App\Models\StoreProduct
+    {
+        $target = $this->normalizeProductUrl($url);
+
+        return $store->products()
+            ->get()
+            ->first(fn (\App\Models\StoreProduct $product) => $this->normalizeProductUrl($product->url) === $target);
+    }
+
+    private function normalizeProductUrl(string $url): string
+    {
+        $url = strtolower(strtok($url, '?') ?: $url);
+
+        return rtrim($url, '/');
     }
 
     public function products(Request $request): JsonResponse

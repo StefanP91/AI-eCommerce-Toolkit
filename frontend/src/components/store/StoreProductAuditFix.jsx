@@ -20,18 +20,19 @@ const AUDIT_STEPS = [
   'Calculating SEO score...',
 ];
 
-function withCacheBuster(url) {
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}_acs=${Date.now()}`;
-}
-
-export default function StoreProductAuditFix({ product, store, onClose, onStoreRefresh = null }) {
+export default function StoreProductAuditFix({
+  product,
+  store,
+  onClose,
+  onStoreRefresh = null,
+}) {
   const panelRef = useRef(null);
   const [phase, setPhase] = useState('auditing');
   const [auditStep, setAuditStep] = useState(0);
   const [auditResult, setAuditResult] = useState(null);
   const [generatedResult, setGeneratedResult] = useState(null);
   const [livePageAudit, setLivePageAudit] = useState(null);
+  const [refreshingAfterPush, setRefreshingAfterPush] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -52,10 +53,19 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
     runAudit();
   }, [product.url]);
 
-  const runAudit = async (bustCache = false) => {
+  const syncAuditResult = async (data) => {
+    setAuditResult(data);
+    await onStoreRefresh?.({
+      store: data.store ?? null,
+      mergeProduct: data.store_product ?? null,
+    });
+  };
+
+  const runAudit = async (afterPush = false) => {
     setPhase('auditing');
+    setRefreshingAfterPush(afterPush);
     setError('');
-    if (!bustCache) {
+    if (!afterPush) {
       setGeneratedResult(null);
       setLivePageAudit(null);
     }
@@ -63,11 +73,11 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
 
     try {
       const res = await api.post('/store/audit-url', {
-        product_url: bustCache ? withCacheBuster(product.url) : product.url,
-        bust_cache: bustCache,
+        product_url: product.url,
+        bust_cache: true,
       });
-      setAuditResult(res.data);
-      if (bustCache) {
+      await syncAuditResult(res.data);
+      if (afterPush) {
         setLivePageAudit(res.data);
         setPhase('done');
       } else {
@@ -142,7 +152,9 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
             <div className="d-flex align-items-center gap-3 mb-4">
               <Spinner animation="border" variant="primary" />
               <div>
-                <h5 className="mb-1">{livePageAudit || generatedResult ? 'Refreshing live page score' : 'Running SEO Audit'}</h5>
+                <h5 className="mb-1">
+                  {refreshingAfterPush ? 'Refreshing live page score' : 'Running SEO Audit'}
+                </h5>
                 <p className="text-muted mb-0">{AUDIT_STEPS[auditStep]}</p>
               </div>
             </div>

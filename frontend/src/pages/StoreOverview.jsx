@@ -98,7 +98,7 @@ export default function StoreOverview() {
 
   const isPro = plan === 'pro';
 
-  const loadStore = async ({ store: storeData = null, products: productsData = null } = {}) => {
+  const loadStore = async ({ store: storeData = null, products: productsData = null, mergeProduct = null } = {}) => {
     try {
       let nextStore = storeData;
       if (!nextStore) {
@@ -107,20 +107,28 @@ export default function StoreOverview() {
       }
       setStore(nextStore);
 
-      let refreshedProducts = productsData;
-      if (!refreshedProducts && nextStore) {
+      if (productsData) {
+        setProducts(productsData);
+      } else if (mergeProduct) {
+        setProducts((current) => current.map((item) => (
+          item.id === mergeProduct.id ? { ...item, ...mergeProduct } : item
+        )));
+      } else if (nextStore) {
         const productsRes = await api.get('/store/products');
-        refreshedProducts = productsRes.data.data || [];
+        setProducts(productsRes.data.data || []);
+      } else {
+        setProducts([]);
       }
 
-      if (refreshedProducts) {
-        setProducts(refreshedProducts);
+      if (mergeProduct) {
+        setAuditProduct((current) => (
+          current?.id === mergeProduct.id ? { ...current, ...mergeProduct } : current
+        ));
+      } else if (productsData) {
         setAuditProduct((current) => {
           if (!current) return null;
-          return refreshedProducts.find((item) => item.id === current.id) ?? current;
+          return productsData.find((item) => item.id === current.id) ?? current;
         });
-      } else if (!nextStore) {
-        setProducts([]);
       }
     } catch {
       setStore(null);
