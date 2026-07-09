@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -37,30 +37,25 @@ class ShopifyOAuthService
 
     public function createState(int $userId): string
     {
-        return Crypt::encryptString(json_encode([
-            'user_id' => $userId,
-            'nonce' => Str::random(40),
-            'exp' => now()->addMinutes(15)->timestamp,
-        ], JSON_THROW_ON_ERROR));
+        $state = Str::random(40);
+        Cache::put("shopify_oauth_state:{$state}", $userId, now()->addMinutes(15));
+
+        return $state;
     }
 
     public function parseState(string $state): int
     {
-        try {
-            $payload = json_decode(Crypt::decryptString($state), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\Throwable) {
-            throw new \RuntimeException('OAuth session expired. Please try connecting again.');
-        }
-
-        if (! is_array($payload) || empty($payload['user_id']) || empty($payload['exp'])) {
+        $state = trim($state);
+        if ($state === '') {
             throw new \RuntimeException('Invalid OAuth state.');
         }
 
-        if (now()->timestamp > (int) $payload['exp']) {
+        $userId = Cache::pull("shopify_oauth_state:{$state}");
+        if ($userId === null) {
             throw new \RuntimeException('OAuth session expired. Please try connecting again.');
         }
 
-        return (int) $payload['user_id'];
+        return (int) $userId;
     }
 
     public function buildAuthorizeUrl(string $shop, string $state): string
