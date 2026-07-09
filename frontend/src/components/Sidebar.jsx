@@ -16,6 +16,7 @@ const navItems = [
   { to: '/projects', label: 'Saved Projects', icon: '💾' },
   { to: '/history', label: 'History', icon: '🕐' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
+  { to: '/support', label: 'Support', icon: '💬' },
 ];
 
 const adminNavItem = { to: '/admin', label: 'Admin', icon: '🛡️' };

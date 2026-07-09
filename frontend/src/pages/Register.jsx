@@ -77,6 +77,11 @@ export default function Register() {
           <p className="text-center mt-3 mb-0 small">
             Already have an account? <Link to="/login">Sign In</Link>
           </p>
+
+          <p className="text-center mt-3 mb-0 small text-muted">
+            By creating an account, you agree to our{' '}
+            <Link to="/terms">Terms of Service</Link> and <Link to="/privacy">Privacy Policy</Link>.
+          </p>
         </Card.Body>
       </Card>
     </Container>

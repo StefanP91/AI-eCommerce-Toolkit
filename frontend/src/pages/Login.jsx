@@ -70,6 +70,12 @@ export default function Login() {
           <p className="text-center mt-3 mb-0 small">
             Don&apos;t have an account? <Link to="/register">Register</Link>
           </p>
+
+          <p className="text-center mt-3 mb-0 small text-muted">
+            <Link to="/privacy">Privacy Policy</Link>
+            {' · '}
+            <Link to="/terms">Terms of Service</Link>
+          </p>
         </Card.Body>
       </Card>
     </Container>

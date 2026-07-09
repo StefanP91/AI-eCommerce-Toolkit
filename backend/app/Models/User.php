@@ -29,6 +29,7 @@ class User extends Authenticatable
         'status',
         'ai_generations_today',
         'ai_generations_date',
+        'last_login_at',
     ];
 
     /**
@@ -50,6 +51,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_login_at' => 'datetime',
             'password' => 'hashed',
             'ai_generations_date' => 'date',
         ];

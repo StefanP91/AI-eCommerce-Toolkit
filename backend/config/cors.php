@@ -1,5 +1,10 @@
 <?php
 
+$frontendOrigins = array_values(array_filter(array_map(
+    static fn (string $url) => rtrim(trim($url), '/'),
+    preg_split('/\s*,\s*/', (string) env('FRONTEND_URLS', env('FRONTEND_URL', ''))) ?: []
+)));
+
 return [
 
     /*
@@ -19,9 +24,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => env('FRONTEND_URL')
-        ? [rtrim(env('FRONTEND_URL'), '/')]
-        : ['*'],
+    'allowed_origins' => $frontendOrigins !== [] ? $frontendOrigins : ['*'],
 
     'allowed_origins_patterns' => [],
 

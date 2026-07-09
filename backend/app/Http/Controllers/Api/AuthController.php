@@ -25,6 +25,7 @@ class AuthController extends Controller
       'name' => $validated['name'],
       'email' => $validated['email'],
       'password' => $validated['password'],
+      'last_login_at' => now(),
     ]);
 
     $token = $user->createToken('auth-token')->plainTextToken;
@@ -55,6 +56,8 @@ class AuthController extends Controller
         'email' => ['Your account has been suspended. Contact support.'],
       ]);
     }
+
+    $user->update(['last_login_at' => now()]);
 
     $token = $user->createToken('auth-token')->plainTextToken;
 

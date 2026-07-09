@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\AnalyticsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BulkUploadController;
 use App\Http\Controllers\Api\CreditsController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\HistoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SettingsController;
+use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\ToolController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,6 +17,7 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('/analytics/visit', [AnalyticsController::class, 'track']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -51,10 +54,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/bulk/{bulkUpload}', [BulkUploadController::class, 'destroy']);
 
     Route::put('/settings', [SettingsController::class, 'update']);
+    Route::post('/support', [SupportController::class, 'store']);
 
         Route::middleware('admin')->prefix('admin')->group(function () {
             Route::get('/stats', [AdminController::class, 'stats']);
             Route::get('/users', [AdminController::class, 'users']);
+            Route::get('/support', [AdminController::class, 'supportRequests']);
+            Route::patch('/support/{supportRequest}', [AdminController::class, 'updateSupportRequest']);
             Route::patch('/users/{user}', [AdminController::class, 'updateUser']);
         });
     });

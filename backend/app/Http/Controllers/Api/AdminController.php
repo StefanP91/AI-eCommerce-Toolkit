@@ -4,15 +4,36 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\GenerationHistory;
+use App\Models\PageVisit;
 use App\Models\Product;
+use App\Models\SupportRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminController extends Controller
 {
     public function stats(Request $request): JsonResponse
     {
+        $today = now()->startOfDay();
+        $weekStart = now()->startOfWeek();
+
+        $visitsByCountry = PageVisit::query()
+            ->select(
+                'country_code',
+                DB::raw('MAX(country_name) as country_name'),
+                DB::raw('COUNT(*) as visits'),
+                DB::raw('COUNT(DISTINCT visitor_hash) as unique_visitors')
+            )
+            ->whereNotNull('country_code')
+            ->groupBy('country_code')
+            ->orderByDesc('visits')
+            ->limit(15)
+            ->get();
+
+        $unknownVisits = PageVisit::whereNull('country_code')->count();
+
         return response()->json([
             'total_users' => User::count(),
             'active_users' => User::where('status', 'active')->count(),
@@ -20,6 +41,15 @@ class AdminController extends Controller
             'pro_users' => User::where('plan', 'pro')->count(),
             'total_products' => Product::count(),
             'total_generations' => GenerationHistory::count(),
+            'visits' => [
+                'total' => PageVisit::count(),
+                'today' => PageVisit::where('created_at', '>=', $today)->count(),
+                'this_week' => PageVisit::where('created_at', '>=', $weekStart)->count(),
+                'unique_today' => PageVisit::where('created_at', '>=', $today)->distinct('visitor_hash')->count('visitor_hash'),
+                'by_country' => $visitsByCountry,
+                'unknown_country' => $unknownVisits,
+            ],
+            'open_support_requests' => SupportRequest::where('status', 'open')->count(),
         ]);
     }
 
@@ -39,6 +69,30 @@ class AdminController extends Controller
             ->paginate(20);
 
         return response()->json($users);
+    }
+
+    public function supportRequests(Request $request): JsonResponse
+    {
+        $requests = SupportRequest::query()
+            ->with('user:id,name,email')
+            ->orderByDesc('created_at')
+            ->paginate(10);
+
+        return response()->json($requests);
+    }
+
+    public function updateSupportRequest(Request $request, SupportRequest $supportRequest): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => ['required', 'in:open,closed'],
+        ]);
+
+        $supportRequest->update($validated);
+
+        return response()->json([
+            'message' => 'Support request updated.',
+            'request' => $supportRequest->load('user:id,name,email'),
+        ]);
     }
 
     public function updateUser(Request $request, User $user): JsonResponse

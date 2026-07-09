@@ -16,10 +16,29 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString('mk-MK');
 }
 
+function formatDateTime(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('mk-MK', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function countryLabel(row) {
+  if (row.country_name && row.country_name !== row.country_code) {
+    return `${row.country_name} (${row.country_code})`;
+  }
+  return row.country_code || '—';
+}
+
 export default function Admin() {
   const { user, setUser } = useAuth();
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
+  const [supportRequests, setSupportRequests] = useState([]);
   const [meta, setMeta] = useState({});
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -27,18 +46,21 @@ export default function Admin() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [savingId, setSavingId] = useState(null);
+  const [closingSupportId, setClosingSupportId] = useState(null);
   const [drafts, setDrafts] = useState({});
 
   const loadData = useCallback(async (pageNum = 1, query = '') => {
     setLoading(true);
     setError('');
     try {
-      const [statsRes, usersRes] = await Promise.all([
+      const [statsRes, usersRes, supportRes] = await Promise.all([
         api.get('/admin/stats'),
         api.get('/admin/users', { params: { page: pageNum, search: query || undefined } }),
+        api.get('/admin/support'),
       ]);
       setStats(statsRes.data);
       setUsers(usersRes.data.data);
+      setSupportRequests(supportRes.data.data);
       setMeta({
         currentPage: usersRes.data.current_page,
         lastPage: usersRes.data.last_page,
@@ -94,6 +116,20 @@ export default function Admin() {
     }
   };
 
+  const handleCloseSupport = async (requestId) => {
+    setClosingSupportId(requestId);
+    setError('');
+    try {
+      await api.patch(`/admin/support/${requestId}`, { status: 'closed' });
+      setMessage('Support request marked as closed.');
+      await loadData(meta.currentPage || 1, search);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update support request.');
+    } finally {
+      setClosingSupportId(null);
+    }
+  };
+
   const hasChanges = (targetUser) => {
     const draft = drafts[targetUser.id];
     if (!draft) return false;
@@ -116,11 +152,13 @@ export default function Admin() {
     );
   }
 
+  const visits = stats?.visits;
+
   return (
     <div>
       <div className="mb-4">
         <h3 className="mb-1">Admin Panel</h3>
-        <p className="text-muted mb-0">Преглед на корисници и управување со статуси.</p>
+        <p className="text-muted mb-0">Преглед на корисници, посетеност и support барања.</p>
       </div>
 
       {message && <Alert variant="success">{message}</Alert>}
@@ -131,12 +169,15 @@ export default function Admin() {
           {[
             ['Вкупно корисници', stats.total_users],
             ['Активни', stats.active_users],
-            ['Суспендирани', stats.suspended_users],
             ['Pro корисници', stats.pro_users],
+            ['Посети денес', visits?.today ?? 0],
+            ['Посети недела', visits?.this_week ?? 0],
+            ['Вкупно посети', visits?.total ?? 0],
             ['Производи', stats.total_products],
             ['AI генерации', stats.total_generations],
+            ['Open Support', stats.open_support_requests],
           ].map(([label, value]) => (
-            <Col key={label} sm={6} lg={4} xl={2}>
+            <Col key={label} sm={6} lg={4} xl={3}>
               <Card className="border-0 shadow-sm h-100">
                 <Card.Body className="py-3">
                   <small className="text-muted">{label}</small>
@@ -146,6 +187,112 @@ export default function Admin() {
             </Col>
           ))}
         </Row>
+      )}
+
+      {visits && (
+        <Card className="border-0 shadow-sm mb-4">
+          <Card.Header className="bg-white fw-semibold">
+            Посетеност по држава
+            {visits.unique_today > 0 && (
+              <Badge bg="secondary" className="ms-2 fw-normal">
+                {visits.unique_today} уникатни денес
+              </Badge>
+            )}
+          </Card.Header>
+          <Card.Body className="p-0">
+            <div className="table-responsive">
+              <Table hover className="mb-0 align-middle">
+                <thead>
+                  <tr>
+                    <th className="ps-3">Држава</th>
+                    <th className="text-end">Посети</th>
+                    <th className="text-end pe-3">Уникатни</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visits.by_country?.length === 0 && !visits.unknown_country ? (
+                    <tr>
+                      <td colSpan={3} className="text-center text-muted py-4">
+                        Нема податоци за посети уште.
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      {visits.by_country?.map((row) => (
+                        <tr key={row.country_code}>
+                          <td className="ps-3">{countryLabel(row)}</td>
+                          <td className="text-end">{row.visits}</td>
+                          <td className="text-end pe-3">{row.unique_visitors}</td>
+                        </tr>
+                      ))}
+                      {visits.unknown_country > 0 && (
+                        <tr>
+                          <td className="ps-3 text-muted">Непозната држава</td>
+                          <td className="text-end">{visits.unknown_country}</td>
+                          <td className="text-end pe-3">—</td>
+                        </tr>
+                      )}
+                    </>
+                  )}
+                </tbody>
+              </Table>
+            </div>
+          </Card.Body>
+        </Card>
+      )}
+
+      {supportRequests.length > 0 && (
+        <Card className="border-0 shadow-sm mb-4">
+          <Card.Header className="bg-white fw-semibold">Support барања</Card.Header>
+          <Card.Body className="p-0">
+            <div className="table-responsive">
+              <Table hover className="mb-0 align-middle">
+                <thead>
+                  <tr>
+                    <th className="ps-3">Корисник</th>
+                    <th>Тема</th>
+                    <th>Порака</th>
+                    <th>Датум</th>
+                    <th>Статус</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {supportRequests.map((req) => (
+                    <tr key={req.id}>
+                      <td className="ps-3">
+                        <div className="fw-semibold">{req.user?.name}</div>
+                        <small className="text-muted">{req.user?.email}</small>
+                      </td>
+                      <td>{req.subject}</td>
+                      <td style={{ maxWidth: 280 }}>
+                        <small className="text-muted">{req.message}</small>
+                      </td>
+                      <td><small>{formatDateTime(req.created_at)}</small></td>
+                      <td>
+                        <Badge bg={req.status === 'open' ? 'warning' : 'secondary'}>
+                          {req.status}
+                        </Badge>
+                      </td>
+                      <td>
+                        {req.status === 'open' && (
+                          <Button
+                            size="sm"
+                            variant="outline-secondary"
+                            disabled={closingSupportId === req.id}
+                            onClick={() => handleCloseSupport(req.id)}
+                          >
+                            {closingSupportId === req.id ? '...' : 'Затвори'}
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          </Card.Body>
+        </Card>
       )}
 
       <Card className="border-0 shadow-sm">
@@ -172,6 +319,7 @@ export default function Admin() {
                   <th>Улога</th>
                   <th>Производи</th>
                   <th>AI</th>
+                  <th>Последен login</th>
                   <th>Регистрација</th>
                   <th />
                 </tr>
@@ -179,7 +327,7 @@ export default function Admin() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center text-muted py-4">Нема корисници.</td>
+                    <td colSpan={9} className="text-center text-muted py-4">Нема корисници.</td>
                   </tr>
                 ) : users.map((u) => (
                   <tr key={u.id}>
@@ -225,6 +373,7 @@ export default function Admin() {
                     </td>
                     <td>{u.products_count}</td>
                     <td>{u.generation_histories_count}</td>
+                    <td><small>{formatDateTime(u.last_login_at)}</small></td>
                     <td><small>{formatDate(u.created_at)}</small></td>
                     <td>
                       <Button

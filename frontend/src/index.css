@@ -165,3 +165,21 @@ body {
   background: linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%);
   border-left: 4px solid var(--bs-primary) !important;
 }
+
+.legal-content h5 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.legal-content p,
+.legal-content li {
+  color: #495057;
+  line-height: 1.65;
+}
+
+.legal-content ul {
+  padding-left: 1.25rem;
+  margin-bottom: 1rem;
+}
