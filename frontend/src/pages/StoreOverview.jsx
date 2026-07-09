@@ -20,8 +20,8 @@ import StoreProductAuditFix from '../components/store/StoreProductAuditFix';
 
 function scoreBadge(score) {
   if (score == null) return 'secondary';
-  if (score >= 80) return 'success';
-  if (score >= 60) return 'warning';
+  if (score >= 90) return 'success';
+  if (score >= 70) return 'warning';
   return 'danger';
 }
 
@@ -462,7 +462,7 @@ export default function StoreOverview() {
                         <td>
                           {product.status === 'error' ? (
                             <span className="text-danger small">Scan failed</span>
-                          ) : product.seo_score >= 80 ? (
+                          ) : product.seo_score >= 90 ? (
                             <span className="text-success small">Good</span>
                           ) : (
                             <span className="text-warning small">Needs work</span>

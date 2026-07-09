@@ -31,6 +31,18 @@ class SeoPageExtractorService
         $h1 = $this->matchH1($html);
         $ogTitle = $this->matchMetaProperty($html, 'og:title');
         $ogDescription = $this->matchMetaProperty($html, 'og:description');
+
+        if (strlen($pageTitle ?? '') < 30 && strlen($ogTitle ?? '') >= 30) {
+            $pageTitle = $ogTitle;
+        }
+
+        if (strlen($metaDescription ?? '') < 120 && strlen($ogDescription ?? '') >= 120) {
+            $metaDescription = $ogDescription;
+        }
+
+        if (strlen($h1 ?? '') < 20 && strlen($ogTitle ?? '') >= 20) {
+            $h1 = $ogTitle;
+        }
         $ogImage = $this->matchMetaProperty($html, 'og:image');
         $canonical = $this->matchCanonical($html);
         $hasViewport = (bool) preg_match('/<meta[^>]+name=["\']viewport["\']/i', $html);
@@ -112,8 +124,25 @@ class SeoPageExtractorService
     private function extractDescription(string $html): string
     {
         foreach ([
-            '/<div[^>]*class=["\'][^"\']*product[_-]?description[^"\']*["\'][^>]*>(.*?)<\/div>/is',
+            '/<div[^>]*class=["\'][^"\']*product[_-]{1,2}description[^"\']*["\'][^>]*>(.*?)<\/div>/is',
+            '/<div[^>]*class=["\'][^"\']*product-single__description[^"\']*["\'][^>]*>(.*?)<\/div>/is',
+            '/<div[^>]*id=["\']ProductDescription[^"\']*["\'][^>]*>(.*?)<\/div>/is',
+            '/<section[^>]*class=["\'][^"\']*product__info[^"\']*["\'][^>]*>.*?<div[^>]*class=["\'][^"\']*\brte\b[^"\']*["\'][^>]*>(.*?)<\/div>/is',
             '/<div[^>]*class=["\'][^"\']*woocommerce-product-details__short-description[^"\']*["\'][^>]*>(.*?)<\/div>/is',
+            '/<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']*)["\']/i',
+            '/<meta[^>]+content=["\']([^"\']*)["\'][^>]+property=["\']og:description["\']/i',
+        ] as $pattern) {
+            if (preg_match($pattern, $html, $m)) {
+                $text = $this->cleanText(strip_tags($m[1]));
+                if (strlen($text) >= 150) {
+                    return $text;
+                }
+            }
+        }
+
+        foreach ([
+            '/<div[^>]*class=["\'][^"\']*product[_-]{1,2}description[^"\']*["\'][^>]*>(.*?)<\/div>/is',
+            '/<div[^>]*id=["\']ProductDescription[^"\']*["\'][^>]*>(.*?)<\/div>/is',
             '/<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']*)["\']/i',
         ] as $pattern) {
             if (preg_match($pattern, $html, $m)) {
@@ -129,19 +158,17 @@ class SeoPageExtractorService
 
     private function hasProductSchema(string $html): bool
     {
-        if (! preg_match_all('/<script[^>]+type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/is', $html, $matches)) {
-            return false;
+        if (preg_match_all('/<script[^>]+type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/is', $html, $matches)) {
+            foreach ($matches[1] as $json) {
+                $decoded = json_decode(trim($json), true);
+                if (is_array($decoded) && $this->jsonLdContainsProduct($decoded)) {
+                    return true;
+                }
+            }
         }
 
-        foreach ($matches[1] as $json) {
-            $decoded = json_decode(trim($json), true);
-            if (! is_array($decoded)) {
-                continue;
-            }
-
-            if ($this->jsonLdContainsProduct($decoded)) {
-                return true;
-            }
+        if (preg_match_all('/"@type"\s*:\s*("Product"|\[\s*"Product"\s*\])/i', $html, $typeMatches)) {
+            return count($typeMatches[0]) > 0;
         }
 
         return false;
@@ -187,7 +214,13 @@ class SeoPageExtractorService
 
     private function matchMetaProperty(string $html, string $property): ?string
     {
-        if (preg_match('/<meta[^>]+property=["\']'.preg_quote($property, '/').'["\'][^>]+content=["\']([^"\']*)["\']/i', $html, $m)) {
+        $quoted = preg_quote($property, '/');
+
+        if (preg_match('/<meta[^>]+property=["\']'.$quoted.'["\'][^>]+content=["\']([^"\']*)["\']/i', $html, $m)) {
+            return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        if (preg_match('/<meta[^>]+content=["\']([^"\']*)["\'][^>]+property=["\']'.$quoted.'["\']/i', $html, $m)) {
             return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
 
@@ -196,7 +229,13 @@ class SeoPageExtractorService
 
     private function matchMetaName(string $html, string $name): ?string
     {
-        if (preg_match('/<meta[^>]+name=["\']'.preg_quote($name, '/').'["\'][^>]+content=["\']([^"\']*)["\']/i', $html, $m)) {
+        $quoted = preg_quote($name, '/');
+
+        if (preg_match('/<meta[^>]+name=["\']'.$quoted.'["\'][^>]+content=["\']([^"\']*)["\']/i', $html, $m)) {
+            return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        if (preg_match('/<meta[^>]+content=["\']([^"\']*)["\'][^>]+name=["\']'.$quoted.'["\']/i', $html, $m)) {
             return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
 

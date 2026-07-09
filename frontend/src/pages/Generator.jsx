@@ -85,7 +85,7 @@ export default function Generator() {
       <div className="mb-4">
         <h3 className="mb-1">AI Product Generator</h3>
         <p className="text-muted mb-0">
-          Generate SEO-optimized product content, then save the ones you want to keep.
+          Generate SEO-optimized product content for any URL or product name, then save the ones you want to keep.
           {remaining !== null && (
             <span className="ms-2 badge bg-secondary">{remaining} generations remaining today</span>
           )}
@@ -145,7 +145,7 @@ export default function Generator() {
                       name="product_url"
                       value={form.product_url}
                       onChange={handleChange}
-                      placeholder="https://mystore.com/product/..."
+                      placeholder="https://example.com/product/..."
                       required
                     />
                   </Form.Group>

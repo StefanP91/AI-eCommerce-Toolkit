@@ -74,9 +74,21 @@ class ShopifyProductPushService
             throw new \RuntimeException('Shopify returned an unexpected response after creating the product.');
         }
 
+        $shopifyProductId = (int) $created['id'];
+
+        try {
+            $this->updateSeoMetafields($host, $token, $shopifyProductId, $product);
+            $this->updateProductImageAlt($host, $token, $shopifyProductId, $product);
+        } catch (\Throwable $e) {
+            Log::warning('Shopify SEO follow-up failed after product create', [
+                'shopify_product_id' => $shopifyProductId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         return [
             'action' => 'created',
-            'shopify_product_id' => $created['id'],
+            'shopify_product_id' => $shopifyProductId,
             'admin_url' => "https://{$host}/admin/products/{$created['id']}",
             'title' => $created['title'],
             'handle' => $created['handle'],
@@ -105,6 +117,7 @@ class ShopifyProductPushService
 
         try {
             $this->updateSeoMetafields($host, $token, $shopifyProductId, $product);
+            $this->updateProductImageAlt($host, $token, $shopifyProductId, $product);
         } catch (\Throwable $e) {
             Log::warning('Shopify SEO metafield update failed after product push', [
                 'shopify_product_id' => $shopifyProductId,
@@ -160,7 +173,7 @@ class ShopifyProductPushService
 
     private function updateSeoMetafields(string $host, string $token, int $shopifyProductId, Product $product): void
     {
-        $content = $product->generated_content ?? [];
+        $content = $this->platformExport->optimizedContentForPush($product);
         $metaTitle = (string) ($content['meta_title'] ?? $content['seo_title'] ?? '');
         $metaDescription = (string) ($content['meta_description'] ?? '');
 
@@ -171,6 +184,54 @@ class ShopifyProductPushService
         if ($metaDescription !== '') {
             $this->upsertProductMetafield($host, $token, $shopifyProductId, 'description_tag', $metaDescription);
         }
+    }
+
+    private function updateProductImageAlt(string $host, string $token, int $shopifyProductId, Product $product): void
+    {
+        $content = $this->platformExport->optimizedContentForPush($product);
+        $alt = trim((string) ($content['image_alt_text'] ?? ''));
+
+        if (strlen($alt) < 10) {
+            return;
+        }
+
+        $response = $this->shopifyRequest($token)
+            ->get($this->apiUrl($host, "products/{$shopifyProductId}.json"), [
+                'fields' => 'id,images',
+            ]);
+
+        if (! $response->successful()) {
+            return;
+        }
+
+        $images = $response->json('product.images') ?? [];
+        if (! is_array($images) || $images === []) {
+            return;
+        }
+
+        $payloadImages = [];
+        foreach ($images as $image) {
+            if (! is_array($image) || empty($image['id'])) {
+                continue;
+            }
+
+            $payloadImages[] = [
+                'id' => $image['id'],
+                'alt' => $alt,
+            ];
+        }
+
+        if ($payloadImages === []) {
+            return;
+        }
+
+        $this->shopifyRequest($token)
+            ->put($this->apiUrl($host, "products/{$shopifyProductId}.json"), [
+                'product' => [
+                    'id' => $shopifyProductId,
+                    'images' => $payloadImages,
+                ],
+            ]);
     }
 
     private function upsertProductMetafield(

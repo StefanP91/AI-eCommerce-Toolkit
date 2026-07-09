@@ -257,6 +257,7 @@ export default function StoreProductAuditFix({
               store={store}
               onPushSuccess={handlePushSuccess}
               hideSeoScore
+              showStorePublish
             />
           </>
         )}

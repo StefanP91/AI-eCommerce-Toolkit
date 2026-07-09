@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, Button, Badge, Nav, Tab, Spinner } from 'react-bootstrap';
-import api from '../api/client';
 import SeoScore from './SeoScore';
 import ExportButtons from './ExportButtons';
 import PublishToStorePanel from './store/PublishToStorePanel';
@@ -46,26 +45,13 @@ export default function ProductResults({
   result,
   onSave,
   saving = false,
-  store: storeProp = null,
+  store = null,
   onPushSuccess = null,
   hideSeoScore = false,
+  showStorePublish = false,
 }) {
   const { content, seo_score, seo_checks, product } = result;
   const isSaved = Boolean(product?.id);
-  const [store, setStore] = useState(storeProp);
-
-  useEffect(() => {
-    if (storeProp) {
-      setStore(storeProp);
-      return undefined;
-    }
-
-    api.get('/store')
-      .then((res) => setStore(res.data.store))
-      .catch(() => setStore(null));
-
-    return undefined;
-  }, [storeProp]);
 
   const handleCopyAll = async () => {
     const allText = [
@@ -133,17 +119,14 @@ export default function ProductResults({
         </>
       )}
 
-      <PublishToStorePanel
-        productId={isSaved ? product.id : null}
-        onCopyAll={handleCopyAll}
-        store={store}
-        onPushSuccess={(data) => {
-          if (data?.store) {
-            setStore(data.store);
-          }
-          onPushSuccess?.(data);
-        }}
-      />
+      {showStorePublish && (
+        <PublishToStorePanel
+          productId={isSaved ? product.id : null}
+          onCopyAll={handleCopyAll}
+          store={store}
+          onPushSuccess={onPushSuccess}
+        />
+      )}
 
       <Tab.Container defaultActiveKey="content">
         <Nav variant="tabs" className="mb-3">

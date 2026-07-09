@@ -7,6 +7,9 @@ use Illuminate\Support\Str;
 
 class PlatformExportService
 {
+    public function __construct(
+        private SeoContentOptimizerService $optimizer,
+    ) {}
     public function toShopifyCsv(Product $product): string
     {
         return $this->buildCsv([$this->shopifyHeaders(), $this->shopifyRow($product)]);
@@ -177,12 +180,18 @@ class PlatformExportService
 
     public function shopifyProductPayload(Product $product, bool $forUpdate = false): array
     {
-        $fields = $this->contentFields($product);
-        $content = $product->generated_content ?? [];
+        $content = $this->optimizer->optimize($product->generated_content ?? [], [
+            'product_name' => $product->product_name ?? '',
+            'category' => $product->category ?? 'General',
+            'target_country' => 'US',
+            'tone' => 'professional',
+        ]);
+
+        $fields = $this->contentFieldsFromOptimized($content, $product);
         $handle = $this->handle($fields['name']);
 
         $payload = [
-            'title' => $this->shopifyProductTitle($fields, $content),
+            'title' => $this->shopifyDisplayTitle($fields, $content),
             'body_html' => $this->buildShopifyBodyHtml($fields, $content),
             'tags' => $fields['tags'],
             'status' => 'active',
@@ -235,6 +244,16 @@ class PlatformExportService
         return $payload;
     }
 
+    public function optimizedContentForPush(Product $product): array
+    {
+        return $this->optimizer->optimize($product->generated_content ?? [], [
+            'product_name' => $product->product_name ?? '',
+            'category' => $product->category ?? 'General',
+            'target_country' => 'US',
+            'tone' => 'professional',
+        ]);
+    }
+
     private function buildShopifyBodyHtml(array $fields, array $content): string
     {
         $parts = [];
@@ -270,7 +289,25 @@ class PlatformExportService
             $parts[] = '<h3>FAQs</h3>'.$faqHtml;
         }
 
-        return implode("\n", $parts);
+        if ($parts === []) {
+            return '';
+        }
+
+        return '<div class="product-description product__description rte">'.implode("\n", $parts).'</div>';
+    }
+
+    private function contentFieldsFromOptimized(array $content, Product $product): array
+    {
+        return [
+            'name' => $product->product_name ?? '',
+            'description' => $content['description'] ?? '',
+            'short_description' => $content['short_description'] ?? '',
+            'meta_title' => $content['meta_title'] ?? $content['seo_title'] ?? '',
+            'meta_description' => $content['meta_description'] ?? '',
+            'tags' => implode(', ', $content['tags'] ?? []),
+            'image_alt' => $content['image_alt_text'] ?? '',
+            'category' => $product->category ?? '',
+        ];
     }
 
     private function contentFields(Product $product): array
@@ -289,16 +326,25 @@ class PlatformExportService
         ];
     }
 
-    private function shopifyProductTitle(array $fields, array $content): string
+    private function shopifyDisplayTitle(array $fields, array $content): string
     {
         foreach ([$content['seo_title'] ?? '', $fields['meta_title'], $fields['name']] as $candidate) {
             $candidate = trim((string) $candidate);
-            if ($candidate !== '' && strlen($candidate) <= 255) {
+            if (strlen($candidate) >= 20 && strlen($candidate) <= 70) {
                 return $candidate;
             }
         }
 
-        return $fields['name'];
+        $fallback = trim((string) ($content['seo_title'] ?? $fields['meta_title'] ?? $fields['name']));
+        if ($fallback === '') {
+            return 'Premium Product | Shop Online';
+        }
+
+        if (strlen($fallback) < 20) {
+            $fallback .= ' | Premium Quality';
+        }
+
+        return Str::limit($fallback, 70, '');
     }
 
     private function handle(string $name): string

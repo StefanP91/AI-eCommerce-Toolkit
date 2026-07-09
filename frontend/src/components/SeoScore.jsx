@@ -1,7 +1,7 @@
 export default function SeoScore({ score, checks }) {
   const getScoreColor = (s) => {
-    if (s >= 80) return '#28a745';
-    if (s >= 60) return '#ffc107';
+    if (s >= 90) return '#28a745';
+    if (s >= 70) return '#ffc107';
     return '#dc3545';
   };
 
