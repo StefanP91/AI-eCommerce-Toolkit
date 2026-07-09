@@ -55,6 +55,7 @@ frontend/README.md
 frontend/src/assets/hero.png
 frontend/src/assets/react.svg
 frontend/src/assets/vite.svg
+frontend/public/favicon-original.png
 
 # OS & IDE
 .DS_Store
@@ -62,5 +63,7 @@ Thumbs.db
 .idea/
 .vscode/
 .fleet/
+.cursor/
+.githooks/
 *.swp
 *.log

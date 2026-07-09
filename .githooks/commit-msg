@@ -1,7 +1,0 @@
-#!/usr/bin/env sh
-# Strip Co-authored-by: Cursor lines if they slip into a commit message.
-msg_file="$1"
-if [ -f "$msg_file" ]; then
-  grep -viE '^Co-authored-by:[[:space:]]*Cursor' "$msg_file" > "${msg_file}.tmp" && mv "${msg_file}.tmp" "$msg_file"
-fi
-exit 0
