@@ -313,6 +313,7 @@ class ProductController extends Controller
 
         $storeRescan = 'skipped';
         try {
+            sleep(2);
             $store = $this->storeScanService->scan($store->fresh());
             $storeRescan = $store->status === 'ready' ? 'completed' : 'failed';
         } catch (\Throwable $e) {
@@ -327,11 +328,17 @@ class ProductController extends Controller
             $message .= ' Store scan refreshed.';
         }
 
+        $refreshedProducts = $store->products()
+            ->orderByDesc('seo_score')
+            ->limit(20)
+            ->get(['id', 'url', 'product_name', 'seo_score', 'status']);
+
         return response()->json([
             'message' => $message,
             'shopify' => $result,
             'store_rescan' => $storeRescan,
             'store' => $store->fresh()->toApiArray(),
+            'products' => $refreshedProducts,
         ]);
     }
 

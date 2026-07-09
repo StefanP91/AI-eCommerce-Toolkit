@@ -97,14 +97,28 @@ export default function StoreOverview() {
 
   const isPro = plan === 'pro';
 
-  const loadStore = async () => {
+  const loadStore = async ({ store: storeData = null, products: productsData = null } = {}) => {
     try {
-      const res = await api.get('/store');
-      setStore(res.data.store);
-      if (res.data.store) {
+      let nextStore = storeData;
+      if (!nextStore) {
+        const res = await api.get('/store');
+        nextStore = res.data.store;
+      }
+      setStore(nextStore);
+
+      let refreshedProducts = productsData;
+      if (!refreshedProducts && nextStore) {
         const productsRes = await api.get('/store/products');
-        setProducts(productsRes.data.data || []);
-      } else {
+        refreshedProducts = productsRes.data.data || [];
+      }
+
+      if (refreshedProducts) {
+        setProducts(refreshedProducts);
+        setAuditProduct((current) => {
+          if (!current) return null;
+          return refreshedProducts.find((item) => item.id === current.id) ?? current;
+        });
+      } else if (!nextStore) {
         setProducts([]);
       }
     } catch {

@@ -55,7 +55,7 @@ class StoreScanService
                 ]);
 
                 try {
-                    $audit = $this->auditService->auditUrl($url, $http);
+                    $audit = $this->auditService->auditUrl($url, $http, bustCache: true);
                     $score = $audit['score'];
                     $scores[] = $score;
 

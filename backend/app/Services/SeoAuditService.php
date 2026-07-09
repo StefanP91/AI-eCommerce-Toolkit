@@ -8,9 +8,9 @@ class SeoAuditService
         private SeoPageExtractorService $extractor,
     ) {}
 
-    public function auditUrl(string $url, ?\Illuminate\Http\Client\PendingRequest $http = null): array
+    public function auditUrl(string $url, ?\Illuminate\Http\Client\PendingRequest $http = null, bool $bustCache = false): array
     {
-        $page = $this->extractor->extract($url, $http);
+        $page = $this->extractor->extract($url, $http, $bustCache);
 
         return $this->buildReport($page, urlMode: true);
     }

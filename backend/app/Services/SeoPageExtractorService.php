@@ -8,9 +8,9 @@ use Illuminate\Support\Str;
 
 class SeoPageExtractorService
 {
-    public function extract(string $url, ?\Illuminate\Http\Client\PendingRequest $http = null): array
+    public function extract(string $url, ?\Illuminate\Http\Client\PendingRequest $http = null, bool $bustCache = false): array
     {
-        $html = $this->fetchHtml($url, $http);
+        $html = $this->fetchHtml($url, $http, $bustCache);
 
         if (empty($html)) {
             throw new \RuntimeException('Could not fetch the page. Check the URL and try again.');
@@ -52,15 +52,17 @@ class SeoPageExtractorService
         ];
     }
 
-    private function fetchHtml(string $url, ?\Illuminate\Http\Client\PendingRequest $http = null): ?string
+    private function fetchHtml(string $url, ?\Illuminate\Http\Client\PendingRequest $http = null, bool $bustCache = false): ?string
     {
         try {
             $client = $http ?? Http::withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
                 'Accept' => 'text/html,application/xhtml+xml',
+                'Cache-Control' => 'no-cache',
             ])->timeout(20);
 
-            $response = $client->get($url);
+            $fetchUrl = $bustCache ? $this->withCacheBuster($url) : $url;
+            $response = $client->get($fetchUrl);
 
             return $response->successful() ? $response->body() : null;
         } catch (\Exception $e) {
@@ -210,5 +212,12 @@ class SeoPageExtractorService
     private function cleanText(string $text): string
     {
         return trim(preg_replace('/\s+/', ' ', html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+    }
+
+    private function withCacheBuster(string $url): string
+    {
+        $separator = str_contains($url, '?') ? '&' : '?';
+
+        return $url.$separator.'_acs='.time();
     }
 }

@@ -48,6 +48,8 @@ export default function ProductResults({
   saving = false,
   store: storeProp = null,
   onPushSuccess = null,
+  scoreLabel = 'SEO Score',
+  scoreHint = null,
 }) {
   const { content, seo_score, seo_checks, product } = result;
   const isSaved = Boolean(product?.id);
@@ -125,6 +127,8 @@ export default function ProductResults({
         </p>
       )}
 
+      <small className="text-muted text-uppercase fw-semibold d-block mb-2">{scoreLabel}</small>
+      {scoreHint && <p className="text-muted small mb-3">{scoreHint}</p>}
       <SeoScore score={seo_score} checks={seo_checks} />
 
       <PublishToStorePanel

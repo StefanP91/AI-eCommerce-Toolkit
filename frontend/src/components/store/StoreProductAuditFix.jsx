@@ -20,12 +20,18 @@ const AUDIT_STEPS = [
   'Calculating SEO score...',
 ];
 
+function withCacheBuster(url) {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}_acs=${Date.now()}`;
+}
+
 export default function StoreProductAuditFix({ product, store, onClose, onStoreRefresh = null }) {
   const panelRef = useRef(null);
   const [phase, setPhase] = useState('auditing');
   const [auditStep, setAuditStep] = useState(0);
   const [auditResult, setAuditResult] = useState(null);
   const [generatedResult, setGeneratedResult] = useState(null);
+  const [livePageAudit, setLivePageAudit] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -46,17 +52,19 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
     runAudit();
   }, [product.url]);
 
-  const runAudit = async () => {
+  const runAudit = async (bustCache = false) => {
     setPhase('auditing');
     setError('');
-    setAuditResult(null);
-    setGeneratedResult(null);
+    if (!bustCache) {
+      setGeneratedResult(null);
+      setLivePageAudit(null);
+    }
     setAuditStep(0);
 
     try {
       const res = await api.post('/tools/seo-audit', {
         audit_type: 'url',
-        product_url: product.url,
+        product_url: bustCache ? withCacheBuster(product.url) : product.url,
         product_name: product.product_name || '',
         page_title: '',
         meta_description: '',
@@ -65,17 +73,23 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
         image_alt_text: '',
       });
       setAuditResult(res.data);
-      setPhase('audit_done');
+      if (bustCache) {
+        setLivePageAudit(res.data);
+        setPhase('done');
+      } else {
+        setPhase('audit_done');
+      }
       notifyCreditsUpdated();
     } catch (err) {
       setError(err.response?.data?.message || 'Audit failed. Please try again.');
-      setPhase('audit_done');
+      setPhase(generatedResult ? 'done' : 'audit_done');
     }
   };
 
   const handleFix = async () => {
     setPhase('fixing');
     setError('');
+    setLivePageAudit(null);
 
     try {
       const res = await api.post('/products/generate', {
@@ -105,7 +119,16 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
     }
   };
 
+  const handlePushSuccess = async (data) => {
+    await onStoreRefresh?.({
+      store: data?.store ?? null,
+      products: data?.products ?? null,
+    });
+    await runAudit(true);
+  };
+
   const canFix = auditResult && (auditResult.score < 100 || auditResult.recommendations?.length > 0);
+  const displayAudit = livePageAudit ?? auditResult;
 
   return (
     <Card ref={panelRef} className="border-0 shadow-sm mb-4 border-primary border-2">
@@ -126,7 +149,7 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
             <div className="d-flex align-items-center gap-3 mb-4">
               <Spinner animation="border" variant="primary" />
               <div>
-                <h5 className="mb-1">Running SEO Audit</h5>
+                <h5 className="mb-1">{livePageAudit || generatedResult ? 'Refreshing live page score' : 'Running SEO Audit'}</h5>
                 <p className="text-muted mb-0">{AUDIT_STEPS[auditStep]}</p>
               </div>
             </div>
@@ -146,7 +169,7 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
 
         {phase === 'audit_done' && !auditResult && (
           <div className="text-center py-3">
-            <Button variant="outline-primary" onClick={runAudit}>
+            <Button variant="outline-primary" onClick={() => runAudit()}>
               Retry Audit
             </Button>
           </div>
@@ -154,6 +177,7 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
 
         {phase === 'audit_done' && auditResult && (
           <>
+            <small className="text-muted text-uppercase fw-semibold d-block mb-2">Live page score</small>
             <SeoScore score={auditResult.score} checks={auditResult.checks} />
 
             {auditResult.recommendations?.length > 0 && (
@@ -201,18 +225,36 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
           </div>
         )}
 
-        {phase === 'done' && generatedResult && auditResult && (
+        {phase === 'done' && generatedResult && displayAudit && (
           <>
-            {generatedResult.seo_score > auditResult.score && (
+            {livePageAudit && (
+              <>
+                <Alert variant="success" className="py-2">
+                  Live store page score after push: <strong>{livePageAudit.score}/100</strong>
+                  {auditResult && livePageAudit.score !== auditResult.score && (
+                    <span className="ms-1">
+                      (was {auditResult.score}/100 before push)
+                    </span>
+                  )}
+                </Alert>
+                <small className="text-muted text-uppercase fw-semibold d-block mb-2">Live page score (store)</small>
+                <SeoScore score={livePageAudit.score} checks={livePageAudit.checks} />
+              </>
+            )}
+
+            {!livePageAudit && generatedResult.seo_score > auditResult.score && (
               <Alert variant="success" className="py-2">
-                SEO score improved from <strong>{auditResult.score}</strong> to{' '}
+                AI content score improved from <strong>{auditResult.score}</strong> to{' '}
                 <strong>{generatedResult.seo_score}</strong>/100
               </Alert>
             )}
+
             <ProductResults
               result={generatedResult}
               store={store}
-              onPushSuccess={() => onStoreRefresh?.()}
+              onPushSuccess={handlePushSuccess}
+              scoreLabel="AI content preview score"
+              scoreHint="This scores the generated copy. Your live Shopify page is scored separately after push."
             />
           </>
         )}
