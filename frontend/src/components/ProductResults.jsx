@@ -42,16 +42,23 @@ function FieldCard({ title, value, multiline = false }) {
   );
 }
 
-export default function ProductResults({ result, onSave, saving = false }) {
+export default function ProductResults({ result, onSave, saving = false, store: storeProp = null }) {
   const { content, seo_score, seo_checks, product } = result;
   const isSaved = Boolean(product?.id);
-  const [store, setStore] = useState(null);
+  const [store, setStore] = useState(storeProp);
 
   useEffect(() => {
+    if (storeProp) {
+      setStore(storeProp);
+      return undefined;
+    }
+
     api.get('/store')
       .then((res) => setStore(res.data.store))
       .catch(() => setStore(null));
-  }, []);
+
+    return undefined;
+  }, [storeProp]);
 
   const handleCopyAll = async () => {
     const allText = [

@@ -1,0 +1,218 @@
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Button, Card, Spinner } from 'react-bootstrap';
+import api from '../../api/client';
+import SeoScore from '../SeoScore';
+import ProductResults from '../ProductResults';
+import { notifyCreditsUpdated } from '../../utils/credits';
+
+const GENERATE_DEFAULTS = {
+  language: 'en',
+  tone: 'professional',
+  target_country: 'US',
+  category: 'General',
+};
+
+const AUDIT_STEPS = [
+  'Fetching product page...',
+  'Analyzing page title and meta tags...',
+  'Checking headings and content structure...',
+  'Reviewing images and schema markup...',
+  'Calculating SEO score...',
+];
+
+export default function StoreProductAuditFix({ product, store, onClose }) {
+  const panelRef = useRef(null);
+  const [phase, setPhase] = useState('auditing');
+  const [auditStep, setAuditStep] = useState(0);
+  const [auditResult, setAuditResult] = useState(null);
+  const [generatedResult, setGeneratedResult] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'auditing') return undefined;
+
+    const interval = setInterval(() => {
+      setAuditStep((current) => (current < AUDIT_STEPS.length - 1 ? current + 1 : current));
+    }, 1200);
+
+    return () => clearInterval(interval);
+  }, [phase]);
+
+  useEffect(() => {
+    runAudit();
+  }, [product.url]);
+
+  const runAudit = async () => {
+    setPhase('auditing');
+    setError('');
+    setAuditResult(null);
+    setGeneratedResult(null);
+    setAuditStep(0);
+
+    try {
+      const res = await api.post('/tools/seo-audit', {
+        audit_type: 'url',
+        product_url: product.url,
+        product_name: product.product_name || '',
+        page_title: '',
+        meta_description: '',
+        h1: '',
+        description: '',
+        image_alt_text: '',
+      });
+      setAuditResult(res.data);
+      setPhase('audit_done');
+      notifyCreditsUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Audit failed. Please try again.');
+      setPhase('audit_done');
+    }
+  };
+
+  const handleFix = async () => {
+    setPhase('fixing');
+    setError('');
+
+    try {
+      const res = await api.post('/products/generate', {
+        input_type: 'url',
+        product_url: auditResult?.extracted?.url || product.url,
+        ...GENERATE_DEFAULTS,
+      });
+
+      const saveRes = await api.post('/products', {
+        ...res.data.input,
+        generated_content: res.data.content,
+        seo_score: res.data.seo_score,
+        seo_checks: res.data.seo_checks,
+        history_id: res.data.history_id,
+      });
+
+      setGeneratedResult({
+        ...res.data,
+        product: saveRes.data.product,
+        saved: true,
+      });
+      setPhase('done');
+      notifyCreditsUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || 'AI fix failed. Please try again.');
+      setPhase('audit_done');
+    }
+  };
+
+  const canFix = auditResult && (auditResult.score < 100 || auditResult.recommendations?.length > 0);
+
+  return (
+    <Card ref={panelRef} className="border-0 shadow-sm mb-4 border-primary border-2">
+      <Card.Header className="bg-white d-flex justify-content-between align-items-start gap-3">
+        <div className="min-w-0">
+          <strong>Audit &amp; Fix:</strong> {product.product_name || 'Product'}
+          <div className="small text-muted text-truncate">{product.url}</div>
+        </div>
+        <Button variant="outline-secondary" size="sm" onClick={onClose}>
+          Close
+        </Button>
+      </Card.Header>
+      <Card.Body className="p-4">
+        {error && <Alert variant="danger">{error}</Alert>}
+
+        {phase === 'auditing' && (
+          <div className="py-3">
+            <div className="d-flex align-items-center gap-3 mb-4">
+              <Spinner animation="border" variant="primary" />
+              <div>
+                <h5 className="mb-1">Running SEO Audit</h5>
+                <p className="text-muted mb-0">{AUDIT_STEPS[auditStep]}</p>
+              </div>
+            </div>
+            <ul className="list-unstyled small mb-0">
+              {AUDIT_STEPS.map((step, index) => (
+                <li
+                  key={step}
+                  className={`mb-2 ${index <= auditStep ? 'text-primary' : 'text-muted'}`}
+                >
+                  {index < auditStep ? '✓ ' : index === auditStep ? '→ ' : '○ '}
+                  {step}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {phase === 'audit_done' && !auditResult && (
+          <div className="text-center py-3">
+            <Button variant="outline-primary" onClick={runAudit}>
+              Retry Audit
+            </Button>
+          </div>
+        )}
+
+        {phase === 'audit_done' && auditResult && (
+          <>
+            <SeoScore score={auditResult.score} checks={auditResult.checks} />
+
+            {auditResult.recommendations?.length > 0 && (
+              <Card className="border mb-4">
+                <Card.Header className="bg-white fw-semibold">Issues found</Card.Header>
+                <Card.Body>
+                  <ul className="mb-0 ps-3">
+                    {auditResult.recommendations.map((tip) => (
+                      <li key={tip} className="mb-2">{tip}</li>
+                    ))}
+                  </ul>
+                </Card.Body>
+              </Card>
+            )}
+
+            {canFix ? (
+              <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                  <h6 className="mb-1">Fix SEO issues with AI</h6>
+                  <p className="text-muted small mb-0">
+                    Generate optimized content and push directly to your store.
+                  </p>
+                </div>
+                <Button variant="primary" onClick={handleFix}>
+                  Fix with AI
+                </Button>
+              </div>
+            ) : (
+              <Alert variant="success" className="mb-0">
+                This product already has a strong SEO score. No fixes needed.
+              </Alert>
+            )}
+          </>
+        )}
+
+        {phase === 'fixing' && (
+          <div className="d-flex align-items-center gap-3 py-4">
+            <Spinner animation="border" variant="primary" />
+            <div>
+              <h5 className="mb-1">Fixing SEO with AI</h5>
+              <p className="text-muted mb-0">
+                Generating optimized content and saving your project...
+              </p>
+            </div>
+          </div>
+        )}
+
+        {phase === 'done' && generatedResult && auditResult && (
+          <>
+            {generatedResult.seo_score > auditResult.score && (
+              <Alert variant="success" className="py-2">
+                SEO score improved from <strong>{auditResult.score}</strong> to{' '}
+                <strong>{generatedResult.seo_score}</strong>/100
+              </Alert>
+            )}
+            <ProductResults result={generatedResult} store={store} />
+          </>
+        )}
+      </Card.Body>
+    </Card>
+  );
+}

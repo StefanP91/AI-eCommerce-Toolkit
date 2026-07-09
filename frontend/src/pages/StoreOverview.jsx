@@ -16,6 +16,7 @@ import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import PublishToStorePanel from '../components/store/PublishToStorePanel';
 import StoreApiSetup from '../components/store/StoreApiSetup';
+import StoreProductAuditFix from '../components/store/StoreProductAuditFix';
 
 function scoreBadge(score) {
   if (score == null) return 'secondary';
@@ -92,6 +93,7 @@ export default function StoreOverview() {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
   const [oauthMessage, setOauthMessage] = useState('');
+  const [auditProduct, setAuditProduct] = useState(null);
 
   const isPro = plan === 'pro';
 
@@ -395,6 +397,15 @@ export default function StoreOverview() {
               )}
             </Card.Header>
             <Card.Body className="p-0">
+              {auditProduct && (
+                <div className="p-3 border-bottom bg-light">
+                  <StoreProductAuditFix
+                    product={auditProduct}
+                    store={store}
+                    onClose={() => setAuditProduct(null)}
+                  />
+                </div>
+              )}
               {products.length === 0 ? (
                 <div className="text-center py-5 text-muted">
                   No products scanned yet. Try rescanning your store.
@@ -433,12 +444,13 @@ export default function StoreOverview() {
                           )}
                         </td>
                         <td className="text-end">
-                          <Link
-                            to={`/seo-audit?url=${encodeURIComponent(product.url)}`}
-                            className="btn btn-sm btn-outline-primary"
+                          <Button
+                            variant={auditProduct?.id === product.id ? 'primary' : 'outline-primary'}
+                            size="sm"
+                            onClick={() => setAuditProduct(product)}
                           >
-                            Audit & Fix
-                          </Link>
+                            Audit &amp; Fix
+                          </Button>
                         </td>
                       </tr>
                     ))}
