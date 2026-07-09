@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, Badge, Button, Card, Col, Row } from 'react-bootstrap';
+import api from '../../api/client';
 import { PLATFORM_EXPORTS } from '../../constants/platformExports';
 import { MANUAL_PUBLISH_STEPS } from '../../constants/storePublish';
 import { downloadExport } from '../../utils/download';
@@ -14,6 +15,9 @@ export default function PublishToStorePanel({
 }) {
   const [exporting, setExporting] = useState('');
   const [copied, setCopied] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [pushResult, setPushResult] = useState(null);
+  const [pushError, setPushError] = useState('');
 
   const handleCopyAll = async () => {
     if (!onCopyAll) return;
@@ -29,6 +33,21 @@ export default function PublishToStorePanel({
       await downloadExport(productId, format);
     } finally {
       setExporting('');
+    }
+  };
+
+  const handlePush = async () => {
+    if (!productId) return;
+    setPushing(true);
+    setPushError('');
+    setPushResult(null);
+    try {
+      const res = await api.post(`/products/${productId}/push-to-store`);
+      setPushResult(res.data);
+    } catch (err) {
+      setPushError(err.response?.data?.message || 'Could not push product to Shopify.');
+    } finally {
+      setPushing(false);
     }
   };
 
@@ -93,16 +112,44 @@ export default function PublishToStorePanel({
               <Card.Body>
                 <div className="d-flex align-items-center gap-2 mb-2">
                   <Badge bg="warning" text="dark">Level 2</Badge>
-                  <strong>Guided API setup</strong>
+                  <strong>Push to store</strong>
                 </div>
                 <p className="text-muted small">
-                  For automatic publishing later. We walk you through creating API keys step by step.
+                  Publish directly to your connected Shopify store with one click.
                 </p>
                 {store?.has_api_connection ? (
-                  <Alert variant="success" className="small py-2 mb-3">
-                    API connected for <strong>{store.platform}</strong>
-                    {store.connection_method === 'oauth' ? ' via OAuth' : ''}. One-click push is coming soon.
-                  </Alert>
+                  <>
+                    <Alert variant="success" className="small py-2 mb-3">
+                      API connected for <strong>{store.platform}</strong>
+                      {store.connection_method === 'oauth' ? ' via OAuth' : ''}.
+                      {store.push_available && productId && ' Ready to push.'}
+                    </Alert>
+                    {store.push_available && productId && (
+                      <div className="mb-3">
+                        <Button variant="primary" size="sm" onClick={handlePush} disabled={pushing}>
+                          {pushing ? 'Pushing...' : 'Push to Shopify'}
+                        </Button>
+                        {pushResult && (
+                          <Alert variant="success" className="small mt-2 mb-0 py-2">
+                            {pushResult.message}{' '}
+                            {pushResult.shopify?.admin_url && (
+                              <a href={pushResult.shopify.admin_url} target="_blank" rel="noreferrer">
+                                View in Shopify Admin
+                              </a>
+                            )}
+                          </Alert>
+                        )}
+                        {pushError && (
+                          <Alert variant="danger" className="small mt-2 mb-0 py-2">{pushError}</Alert>
+                        )}
+                      </div>
+                    )}
+                    {store.push_available && !productId && (
+                      <Alert variant="light" className="small mb-3 py-2">
+                        Save the project first to push to Shopify.
+                      </Alert>
+                    )}
+                  </>
                 ) : (
                   <p className="small text-muted mb-3">
                     Connect your store URL first, then follow the guided setup on Store Overview.

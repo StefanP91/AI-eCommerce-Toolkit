@@ -175,6 +175,94 @@ class PlatformExportService
         ];
     }
 
+    public function shopifyProductPayload(Product $product): array
+    {
+        $fields = $this->contentFields($product);
+        $content = $product->generated_content ?? [];
+        $handle = $this->handle($fields['name']);
+
+        $payload = [
+            'title' => $fields['name'],
+            'body_html' => $this->buildShopifyBodyHtml($fields, $content),
+            'vendor' => '',
+            'product_type' => $fields['category'],
+            'tags' => $fields['tags'],
+            'status' => 'active',
+            'variants' => [
+                [
+                    'price' => '0.00',
+                    'sku' => $handle,
+                    'inventory_management' => 'shopify',
+                    'inventory_quantity' => 0,
+                    'inventory_policy' => 'deny',
+                    'requires_shipping' => true,
+                    'taxable' => true,
+                ],
+            ],
+        ];
+
+        $metafields = [];
+        if ($fields['meta_title'] !== '') {
+            $metafields[] = [
+                'namespace' => 'global',
+                'key' => 'title_tag',
+                'value' => $fields['meta_title'],
+                'type' => 'single_line_text_field',
+            ];
+        }
+        if ($fields['meta_description'] !== '') {
+            $metafields[] = [
+                'namespace' => 'global',
+                'key' => 'description_tag',
+                'value' => $fields['meta_description'],
+                'type' => 'single_line_text_field',
+            ];
+        }
+        if ($metafields !== []) {
+            $payload['metafields'] = $metafields;
+        }
+
+        return $payload;
+    }
+
+    private function buildShopifyBodyHtml(array $fields, array $content): string
+    {
+        $parts = [];
+        $description = $this->toHtml($fields['description']);
+        if ($description !== '') {
+            $parts[] = $description;
+        }
+
+        $features = $content['features'] ?? [];
+        if ($features !== []) {
+            $items = collect($features)
+                ->map(fn (string $feature) => '<li>'.htmlspecialchars($feature, ENT_QUOTES, 'UTF-8').'</li>')
+                ->implode('');
+            $parts[] = '<h3>Features</h3><ul>'.$items.'</ul>';
+        }
+
+        $benefits = $content['benefits'] ?? [];
+        if ($benefits !== []) {
+            $items = collect($benefits)
+                ->map(fn (string $benefit) => '<li>'.htmlspecialchars($benefit, ENT_QUOTES, 'UTF-8').'</li>')
+                ->implode('');
+            $parts[] = '<h3>Benefits</h3><ul>'.$items.'</ul>';
+        }
+
+        $faqs = $content['faqs'] ?? [];
+        if ($faqs !== []) {
+            $faqHtml = '';
+            foreach ($faqs as $faq) {
+                $question = htmlspecialchars((string) ($faq['question'] ?? ''), ENT_QUOTES, 'UTF-8');
+                $answer = htmlspecialchars((string) ($faq['answer'] ?? ''), ENT_QUOTES, 'UTF-8');
+                $faqHtml .= "<p><strong>{$question}</strong><br>{$answer}</p>";
+            }
+            $parts[] = '<h3>FAQs</h3>'.$faqHtml;
+        }
+
+        return implode("\n", $parts);
+    }
+
     private function contentFields(Product $product): array
     {
         $content = $product->generated_content ?? [];

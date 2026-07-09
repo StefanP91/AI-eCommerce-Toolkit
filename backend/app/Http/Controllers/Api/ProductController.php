@@ -6,11 +6,13 @@ use App\Http\Controllers\Concerns\ManagesAiCredits;
 use App\Http\Controllers\Controller;
 use App\Models\GenerationHistory;
 use App\Models\Product;
+use App\Models\StoreConnection;
 use App\Services\AiProductService;
 use App\Services\PlatformExportService;
 use App\Services\ProductExportService;
 use App\Services\SeoContentOptimizerService;
 use App\Services\SeoScoreService;
+use App\Services\ShopifyProductPushService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,6 +26,7 @@ class ProductController extends Controller
         private SeoContentOptimizerService $optimizer,
         private ProductExportService $exportService,
         private PlatformExportService $platformExportService,
+        private ShopifyProductPushService $shopifyPushService,
     ) {}
 
     public function generate(Request $request): JsonResponse
@@ -223,6 +226,46 @@ class ProductController extends Controller
                 'mime' => 'text/plain',
             ]),
         };
+    }
+
+    public function pushToStore(Request $request, Product $product): JsonResponse
+    {
+        if ($product->user_id !== $request->user()->id) {
+            abort(403);
+        }
+
+        if ($request->user()->plan !== 'pro') {
+            return response()->json([
+                'message' => 'Push to store is available on the Pro plan.',
+            ], 403);
+        }
+
+        $store = StoreConnection::where('user_id', $request->user()->id)->first();
+
+        if (! $store || ! $store->hasApiConnection()) {
+            return response()->json([
+                'message' => 'Connect your store API or Shopify OAuth first.',
+            ], 422);
+        }
+
+        if ($store->platform !== 'shopify') {
+            return response()->json([
+                'message' => 'One-click push is currently supported for Shopify only.',
+            ], 422);
+        }
+
+        try {
+            $result = $this->shopifyPushService->push($product, $store);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Product published to Shopify successfully.',
+            'shopify' => $result,
+        ]);
     }
 
     public function exportAll(Request $request): JsonResponse

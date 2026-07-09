@@ -180,7 +180,7 @@ class StoreController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Store API connected successfully. One-click push is coming soon.',
+            'message' => 'Store API connected successfully. You can now push products to Shopify.',
             'store' => $this->formatStore($store->fresh()),
         ]);
     }
@@ -220,7 +220,7 @@ class StoreController extends Controller
             'shopify_oauth_enabled' => filled(config('services.shopify.api_key'))
                 && filled(config('services.shopify.api_secret')),
             'api_connected_at' => $store->api_connected_at?->toIso8601String(),
-            'push_available' => false,
+            'push_available' => $store->hasApiConnection() && $store->platform === 'shopify',
             'status' => $store->status,
             'product_count' => $store->product_count,
             'avg_seo_score' => $store->avg_seo_score,

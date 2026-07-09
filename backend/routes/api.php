@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products/{product}', [ProductController::class, 'show']);
     Route::delete('/products/{product}', [ProductController::class, 'destroy']);
     Route::get('/products/{product}/export', [ProductController::class, 'export']);
+    Route::post('/products/{product}/push-to-store', [ProductController::class, 'pushToStore']);
 
     Route::get('/history', [HistoryController::class, 'index']);
     Route::get('/history/{history}', [HistoryController::class, 'show']);
