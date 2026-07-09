@@ -13,6 +13,7 @@ use App\Services\ProductExportService;
 use App\Services\SeoContentOptimizerService;
 use App\Services\SeoScoreService;
 use App\Services\ShopifyProductPushService;
+use App\Services\StoreScanService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
@@ -30,6 +31,7 @@ class ProductController extends Controller
         private ProductExportService $exportService,
         private PlatformExportService $platformExportService,
         private ShopifyProductPushService $shopifyPushService,
+        private StoreScanService $storeScanService,
     ) {}
 
     public function generate(Request $request): JsonResponse
@@ -289,9 +291,27 @@ class ProductController extends Controller
             ? 'Product updated on Shopify successfully.'
             : 'Product published to Shopify successfully.';
 
+        $storeRescan = 'skipped';
+        try {
+            $store = $this->storeScanService->scan($store->fresh());
+            $storeRescan = $store->status === 'ready' ? 'completed' : 'failed';
+        } catch (\Throwable $e) {
+            Log::warning('Store rescan after Shopify push failed', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+            $storeRescan = 'failed';
+        }
+
+        if ($storeRescan === 'completed') {
+            $message .= ' Store scan refreshed.';
+        }
+
         return response()->json([
             'message' => $message,
             'shopify' => $result,
+            'store_rescan' => $storeRescan,
+            'store' => $store->fresh()->toApiArray(),
         ]);
     }
 

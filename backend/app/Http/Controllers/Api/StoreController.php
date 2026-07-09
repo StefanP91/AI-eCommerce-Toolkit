@@ -27,7 +27,7 @@ class StoreController extends Controller
         }
 
         return response()->json([
-            'store' => $this->formatStore($store),
+            'store' => $store->toApiArray(),
         ]);
     }
 
@@ -73,7 +73,7 @@ class StoreController extends Controller
             'message' => $store->status === 'ready'
                 ? 'Store connected and scanned successfully.'
                 : ($store->error_message ?? 'Store connected, but scanning failed.'),
-            'store' => $this->formatStore($store),
+            'store' => $store->toApiArray(),
         ], $store->status === 'error' ? 422 : 200);
     }
 
@@ -108,7 +108,7 @@ class StoreController extends Controller
             'message' => $store->status === 'ready'
                 ? 'Store scan completed.'
                 : ($store->error_message ?? 'Store scan failed.'),
-            'store' => $this->formatStore($store),
+            'store' => $store->toApiArray(),
         ], $store->status === 'error' ? 422 : 200);
     }
 
@@ -181,7 +181,7 @@ class StoreController extends Controller
 
         return response()->json([
             'message' => 'Store API connected successfully. You can now push products to Shopify.',
-            'store' => $this->formatStore($store->fresh()),
+            'store' => $store->fresh()->toApiArray(),
         ]);
     }
 
@@ -201,33 +201,7 @@ class StoreController extends Controller
 
         return response()->json([
             'message' => 'Store API disconnected.',
-            'store' => $this->formatStore($store->fresh()),
+            'store' => $store->fresh()->toApiArray(),
         ]);
-    }
-
-    private function formatStore(StoreConnection $store): array
-    {
-        $optimizedCount = $store->products()->where('seo_score', '>=', 80)->count();
-        $needsWorkCount = $store->products()->where('seo_score', '<', 60)->count();
-
-        return [
-            'id' => $store->id,
-            'store_url' => $store->store_url,
-            'has_visitor_password' => filled($store->store_password),
-            'platform' => $store->platform,
-            'has_api_connection' => $store->hasApiConnection(),
-            'connection_method' => $store->api_credentials['connection_type'] ?? null,
-            'shopify_oauth_enabled' => filled(config('services.shopify.api_key'))
-                && filled(config('services.shopify.api_secret')),
-            'api_connected_at' => $store->api_connected_at?->toIso8601String(),
-            'push_available' => $store->hasApiConnection() && $store->platform === 'shopify',
-            'status' => $store->status,
-            'product_count' => $store->product_count,
-            'avg_seo_score' => $store->avg_seo_score,
-            'optimized_count' => $optimizedCount,
-            'needs_work_count' => $needsWorkCount,
-            'last_scanned_at' => $store->last_scanned_at?->toIso8601String(),
-            'error_message' => $store->error_message,
-        ];
     }
 }

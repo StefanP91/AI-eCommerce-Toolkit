@@ -20,7 +20,7 @@ const AUDIT_STEPS = [
   'Calculating SEO score...',
 ];
 
-export default function StoreProductAuditFix({ product, store, onClose }) {
+export default function StoreProductAuditFix({ product, store, onClose, onStoreRefresh = null }) {
   const panelRef = useRef(null);
   const [phase, setPhase] = useState('auditing');
   const [auditStep, setAuditStep] = useState(0);
@@ -209,7 +209,11 @@ export default function StoreProductAuditFix({ product, store, onClose }) {
                 <strong>{generatedResult.seo_score}</strong>/100
               </Alert>
             )}
-            <ProductResults result={generatedResult} store={store} />
+            <ProductResults
+              result={generatedResult}
+              store={store}
+              onPushSuccess={() => onStoreRefresh?.()}
+            />
           </>
         )}
       </Card.Body>

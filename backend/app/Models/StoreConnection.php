@@ -51,4 +51,30 @@ class StoreConnection extends Model
     {
         return $this->hasMany(StoreProduct::class);
     }
+
+    public function toApiArray(): array
+    {
+        $optimizedCount = $this->products()->where('seo_score', '>=', 80)->count();
+        $needsWorkCount = $this->products()->where('seo_score', '<', 60)->count();
+
+        return [
+            'id' => $this->id,
+            'store_url' => $this->store_url,
+            'has_visitor_password' => filled($this->store_password),
+            'platform' => $this->platform,
+            'has_api_connection' => $this->hasApiConnection(),
+            'connection_method' => $this->api_credentials['connection_type'] ?? null,
+            'shopify_oauth_enabled' => filled(config('services.shopify.api_key'))
+                && filled(config('services.shopify.api_secret')),
+            'api_connected_at' => $this->api_connected_at?->toIso8601String(),
+            'push_available' => $this->hasApiConnection() && $this->platform === 'shopify',
+            'status' => $this->status,
+            'product_count' => $this->product_count,
+            'avg_seo_score' => $this->avg_seo_score,
+            'optimized_count' => $optimizedCount,
+            'needs_work_count' => $needsWorkCount,
+            'last_scanned_at' => $this->last_scanned_at?->toIso8601String(),
+            'error_message' => $this->error_message,
+        ];
+    }
 }

@@ -12,6 +12,7 @@ export default function PublishToStorePanel({
   onCopyAll,
   store = null,
   compact = false,
+  onPushSuccess = null,
 }) {
   const [exporting, setExporting] = useState('');
   const [copied, setCopied] = useState(false);
@@ -44,6 +45,7 @@ export default function PublishToStorePanel({
     try {
       const res = await api.post(`/products/${productId}/push-to-store`);
       setPushResult(res.data);
+      onPushSuccess?.(res.data);
     } catch (err) {
       setPushError(err.response?.data?.message || 'Could not push product to Shopify.');
     } finally {
@@ -127,7 +129,7 @@ export default function PublishToStorePanel({
                     {store.push_available && productId && (
                       <div className="mb-3">
                         <Button variant="primary" size="sm" onClick={handlePush} disabled={pushing}>
-                          {pushing ? 'Syncing...' : 'Push to Shopify'}
+                          {pushing ? 'Pushing & rescanning...' : 'Push to Shopify'}
                         </Button>
                         {pushResult && (
                           <Alert variant="success" className="small mt-2 mb-0 py-2">

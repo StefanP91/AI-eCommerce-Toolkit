@@ -403,6 +403,7 @@ export default function StoreOverview() {
                     product={auditProduct}
                     store={store}
                     onClose={() => setAuditProduct(null)}
+                    onStoreRefresh={loadStore}
                   />
                 </div>
               )}

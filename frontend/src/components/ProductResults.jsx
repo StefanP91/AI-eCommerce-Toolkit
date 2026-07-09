@@ -42,7 +42,13 @@ function FieldCard({ title, value, multiline = false }) {
   );
 }
 
-export default function ProductResults({ result, onSave, saving = false, store: storeProp = null }) {
+export default function ProductResults({
+  result,
+  onSave,
+  saving = false,
+  store: storeProp = null,
+  onPushSuccess = null,
+}) {
   const { content, seo_score, seo_checks, product } = result;
   const isSaved = Boolean(product?.id);
   const [store, setStore] = useState(storeProp);
@@ -125,6 +131,12 @@ export default function ProductResults({ result, onSave, saving = false, store: 
         productId={isSaved ? product.id : null}
         onCopyAll={handleCopyAll}
         store={store}
+        onPushSuccess={(data) => {
+          if (data?.store) {
+            setStore(data.store);
+          }
+          onPushSuccess?.(data);
+        }}
       />
 
       <Tab.Container defaultActiveKey="content">
