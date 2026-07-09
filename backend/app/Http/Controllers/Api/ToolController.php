@@ -10,6 +10,7 @@ use App\Services\AiToolService;
 use App\Services\ImageOptimizerService;
 use App\Services\SchemaGeneratorService;
 use App\Services\SeoAuditService;
+use App\Services\StoreContextAuditService;
 use App\Services\TranslationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ class ToolController extends Controller
     public function __construct(
         private AiToolService $toolService,
         private SeoAuditService $auditService,
+        private StoreContextAuditService $storeContextAudit,
         private TranslationService $translationService,
         private SchemaGeneratorService $schemaService,
         private ImageOptimizerService $imageService,
@@ -106,7 +108,7 @@ class ToolController extends Controller
 
         try {
             $result = $validated['audit_type'] === 'url'
-                ? $this->auditService->auditUrl($validated['product_url'])
+                ? $this->storeContextAudit->auditUrlForUser($user, $validated['product_url'])
                 : $this->auditService->auditManual($validated);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);

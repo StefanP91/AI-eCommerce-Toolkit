@@ -8,12 +8,22 @@ use Illuminate\Support\Str;
 
 class SeoPageExtractorService
 {
+    public function __construct(
+        private StorefrontSessionService $sessionService,
+    ) {}
+
     public function extract(string $url, ?\Illuminate\Http\Client\PendingRequest $http = null, bool $bustCache = false): array
     {
         $html = $this->fetchHtml($url, $http, $bustCache);
 
         if (empty($html)) {
             throw new \RuntimeException('Could not fetch the page. Check the URL and try again.');
+        }
+
+        if ($this->sessionService->isPasswordProtectedHtml($html)) {
+            throw new \RuntimeException(
+                'This store is password protected. Add your visitor password on Store Overview and try again.'
+            );
         }
 
         $pageTitle = $this->matchTag($html, 'title');

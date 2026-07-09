@@ -94,6 +94,7 @@ export default function StoreOverview() {
   const [error, setError] = useState('');
   const [oauthMessage, setOauthMessage] = useState('');
   const [auditProduct, setAuditProduct] = useState(null);
+  const [auditSessionKey, setAuditSessionKey] = useState(0);
 
   const isPro = plan === 'pro';
 
@@ -414,6 +415,7 @@ export default function StoreOverview() {
               {auditProduct && (
                 <div className="p-3 border-bottom bg-light">
                   <StoreProductAuditFix
+                    key={`${auditProduct.id}-${auditProduct.seo_score}-${auditSessionKey}`}
                     product={auditProduct}
                     store={store}
                     onClose={() => setAuditProduct(null)}
@@ -462,7 +464,10 @@ export default function StoreOverview() {
                           <Button
                             variant={auditProduct?.id === product.id ? 'primary' : 'outline-primary'}
                             size="sm"
-                            onClick={() => setAuditProduct(product)}
+                            onClick={() => {
+                              setAuditProduct(product);
+                              setAuditSessionKey(Date.now());
+                            }}
                           >
                             Audit &amp; Fix
                           </Button>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\StoreConnection;
 use App\Services\StoreApiCredentialsService;
+use App\Services\StoreContextAuditService;
 use App\Services\StoreScanService;
 use App\Services\StoreSitemapService;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ class StoreController extends Controller
         private StoreSitemapService $sitemapService,
         private StoreScanService $scanService,
         private StoreApiCredentialsService $apiCredentialsService,
+        private StoreContextAuditService $storeContextAudit,
     ) {}
 
     public function show(Request $request): JsonResponse
@@ -110,6 +112,37 @@ class StoreController extends Controller
                 : ($store->error_message ?? 'Store scan failed.'),
             'store' => $store->toApiArray(),
         ], $store->status === 'error' ? 422 : 200);
+    }
+
+    public function auditUrl(Request $request): JsonResponse
+    {
+        if ($request->user()->plan !== 'pro') {
+            return response()->json([
+                'message' => 'Store auditing is available on the Pro plan.',
+            ], 403);
+        }
+
+        $store = StoreConnection::where('user_id', $request->user()->id)->first();
+        if (! $store) {
+            return response()->json(['message' => 'No store connected yet.'], 404);
+        }
+
+        $validated = $request->validate([
+            'product_url' => ['required', 'url', 'max:500'],
+            'bust_cache' => ['sometimes', 'boolean'],
+        ]);
+
+        try {
+            $result = $this->storeContextAudit->auditUrlForUser(
+                $request->user(),
+                $validated['product_url'],
+                (bool) ($validated['bust_cache'] ?? false),
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json($result);
     }
 
     public function products(Request $request): JsonResponse

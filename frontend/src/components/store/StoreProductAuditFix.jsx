@@ -62,15 +62,9 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
     setAuditStep(0);
 
     try {
-      const res = await api.post('/tools/seo-audit', {
-        audit_type: 'url',
+      const res = await api.post('/store/audit-url', {
         product_url: bustCache ? withCacheBuster(product.url) : product.url,
-        product_name: product.product_name || '',
-        page_title: '',
-        meta_description: '',
-        h1: '',
-        description: '',
-        image_alt_text: '',
+        bust_cache: bustCache,
       });
       setAuditResult(res.data);
       if (bustCache) {
@@ -79,7 +73,6 @@ export default function StoreProductAuditFix({ product, store, onClose, onStoreR
       } else {
         setPhase('audit_done');
       }
-      notifyCreditsUpdated();
     } catch (err) {
       setError(err.response?.data?.message || 'Audit failed. Please try again.');
       setPhase(generatedResult ? 'done' : 'audit_done');
