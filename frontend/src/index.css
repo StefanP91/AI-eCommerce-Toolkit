@@ -417,6 +417,64 @@ body {
   color: #fff;
 }
 
+.landing-footer-link-btn {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+}
+
+.landing-footer-link-btn:hover {
+  color: #fff;
+}
+
+.landing-navbar .nav-link-btn {
+  color: rgba(255, 255, 255, 0.9) !important;
+  background: transparent;
+  border: 0;
+  padding: 0.5rem 1rem;
+}
+
+.landing-navbar .nav-link-btn:hover {
+  color: #fff !important;
+}
+
+.auth-modal .modal-content {
+  border: 0;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.auth-plan-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 575.98px) {
+  .auth-plan-picker {
+    grid-template-columns: 1fr;
+  }
+}
+
+.auth-plan-option {
+  text-align: left;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-plan-option-active {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.12);
+}
+
+.auth-plan-price {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
 /* Before / After compare */
 .ba-compare-wrap {
   max-width: 820px;

@@ -31,6 +31,7 @@ export const PLANS = {
       'Unlimited AI generations',
       'Unlimited saved products',
       'Everything in Free',
+      'Store connect & SEO overview',
       'Bulk upload (up to 100 rows)',
       'Priority support',
       'Early access to new tools',

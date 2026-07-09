@@ -22,15 +22,17 @@ function scoreBadge(score) {
 }
 
 export default function StoreOverview() {
-  const { user } = useAuth();
-  const isPro = user?.plan === 'pro';
+  const { user, refreshUser } = useAuth();
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
   const [storeUrl, setStoreUrl] = useState('');
+  const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
+
+  const isPro = plan === 'pro';
 
   const loadStore = async () => {
     try {
@@ -49,8 +51,23 @@ export default function StoreOverview() {
   };
 
   useEffect(() => {
-    loadStore().finally(() => setLoading(false));
-  }, []);
+    const loadPage = async () => {
+      try {
+        const [creditsRes, freshUser] = await Promise.all([
+          api.get('/credits'),
+          refreshUser().catch(() => null),
+        ]);
+        await loadStore();
+        setPlan(creditsRes.data.plan ?? freshUser?.plan ?? 'free');
+      } catch {
+        setPlan('free');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPage();
+  }, [refreshUser]);
 
   const handleConnect = async (e) => {
     e.preventDefault();

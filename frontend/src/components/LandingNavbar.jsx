@@ -4,7 +4,7 @@ import { Container, Navbar, Nav, Button } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from './BrandLogo';
 
-export default function LandingNavbar() {
+export default function LandingNavbar({ onOpenLogin, onOpenRegister }) {
   const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
 
@@ -38,8 +38,10 @@ export default function LandingNavbar() {
               </Button>
             ) : (
               <>
-                <Nav.Link as={Link} to="/login">Sign In</Nav.Link>
-                <Button as={Link} to="/register" variant="primary" size="sm" className="ms-lg-2">
+                <Nav.Link as="button" type="button" className="nav-link-btn" onClick={onOpenLogin}>
+                  Sign In
+                </Nav.Link>
+                <Button variant="primary" size="sm" className="ms-lg-2" onClick={() => onOpenRegister('free')}>
                   Start Free
                 </Button>
               </>

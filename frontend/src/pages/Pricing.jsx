@@ -121,6 +121,7 @@ export default function Pricing() {
                   ['SEO Audit & Tools', '✓', '✓'],
                   ['Schema Generator', '✓ (free)', '✓'],
                   ['Export formats', 'All', 'All'],
+                  ['Store connect', '—', '✓'],
                   ['Priority support', '—', '✓'],
                 ].map(([feature, free, pro]) => (
                   <tr key={feature}>

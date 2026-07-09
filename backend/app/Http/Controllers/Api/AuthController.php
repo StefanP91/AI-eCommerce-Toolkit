@@ -19,12 +19,16 @@ class AuthController extends Controller
       'name' => ['required', 'string', 'max:255'],
       'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
       'password' => ['required', 'confirmed', PasswordRule::defaults()],
+      'plan' => ['sometimes', 'in:free,pro'],
     ]);
+
+    $selectedPlan = $validated['plan'] ?? 'free';
 
     $user = User::create([
       'name' => $validated['name'],
       'email' => $validated['email'],
       'password' => $validated['password'],
+      'plan' => 'free',
       'last_login_at' => now(),
     ]);
 
@@ -33,6 +37,7 @@ class AuthController extends Controller
     return response()->json([
       'user' => $user,
       'token' => $token,
+      'selected_plan' => $selectedPlan,
     ], 201);
   }
 

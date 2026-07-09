@@ -1,9 +1,12 @@
-import { Link, Navigate } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { Container, Row, Col, Button, Card, Badge } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { PLANS } from '../constants/plans';
 import LandingNavbar from '../components/LandingNavbar';
 import BeforeAfterCompare from '../components/BeforeAfterCompare';
+import LoginModal from '../components/auth/LoginModal';
+import RegisterModal from '../components/auth/RegisterModal';
 
 const FEATURES = [
   {
@@ -48,6 +51,54 @@ const AUDIENCE = ['Shopify sellers', 'WooCommerce stores', 'BigCommerce', 'Amazo
 
 export default function Landing() {
   const { user, loading } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showLogin, setShowLogin] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  const [registerPlan, setRegisterPlan] = useState('free');
+
+  const clearAuthParams = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('auth');
+    next.delete('plan');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const openLogin = useCallback(() => {
+    setShowRegister(false);
+    setShowLogin(true);
+  }, []);
+
+  const openRegister = useCallback((plan = 'free') => {
+    setShowLogin(false);
+    setRegisterPlan(plan === 'pro' ? 'pro' : 'free');
+    setShowRegister(true);
+  }, []);
+
+  const closeLogin = useCallback(() => {
+    setShowLogin(false);
+    if (searchParams.get('auth')) {
+      clearAuthParams();
+    }
+  }, [clearAuthParams, searchParams]);
+
+  const closeRegister = useCallback(() => {
+    setShowRegister(false);
+    if (searchParams.get('auth')) {
+      clearAuthParams();
+    }
+  }, [clearAuthParams, searchParams]);
+
+  useEffect(() => {
+    const auth = searchParams.get('auth');
+    if (auth === 'login') {
+      setShowLogin(true);
+      setShowRegister(false);
+    } else if (auth === 'register') {
+      setShowRegister(true);
+      setShowLogin(false);
+      setRegisterPlan(searchParams.get('plan') === 'pro' ? 'pro' : 'free');
+    }
+  }, [searchParams]);
 
   if (!loading && user) {
     return <Navigate to="/dashboard" replace />;
@@ -55,7 +106,26 @@ export default function Landing() {
 
   return (
     <div className="landing-page">
-      <LandingNavbar />
+      <LandingNavbar onOpenLogin={openLogin} onOpenRegister={openRegister} />
+
+      <LoginModal
+        show={showLogin}
+        onHide={closeLogin}
+        onSwitchToRegister={() => {
+          setShowLogin(false);
+          openRegister('free');
+        }}
+      />
+
+      <RegisterModal
+        show={showRegister}
+        onHide={closeRegister}
+        initialPlan={registerPlan}
+        onSwitchToLogin={() => {
+          setShowRegister(false);
+          openLogin();
+        }}
+      />
 
       <div className="landing-hero-shell">
         <section className="landing-hero">
@@ -72,10 +142,10 @@ export default function Landing() {
                 ready for your store.
               </p>
               <div className="d-flex flex-wrap gap-3">
-                <Button as={Link} to="/register" variant="primary" size="lg">
+                <Button variant="primary" size="lg" onClick={() => openRegister('free')}>
                   Start Free — No Card Required
                 </Button>
-                <Button as={Link} to="/login" variant="outline-light" size="lg">
+                <Button variant="outline-light" size="lg" onClick={openLogin}>
                   Sign In
                 </Button>
               </div>
@@ -210,12 +280,11 @@ export default function Landing() {
                       ))}
                     </ul>
                     <Button
-                      as={Link}
-                      to={plan.id === 'free' ? '/register' : '/register'}
                       variant={plan.popular ? 'primary' : 'outline-primary'}
                       className="w-100"
+                      onClick={() => openRegister(plan.id)}
                     >
-                      {plan.id === 'free' ? 'Get Started Free' : 'Start with Free, Upgrade Later'}
+                      {plan.id === 'free' ? 'Get Started Free' : 'Choose Pro'}
                     </Button>
                   </Card.Body>
                 </Card>
@@ -231,7 +300,7 @@ export default function Landing() {
           <p className="landing-cta-lead mb-4">
             Join eCommerce sellers using AI Commerce Suite to create SEO-ready content in seconds.
           </p>
-          <Button as={Link} to="/register" variant="light" size="lg" className="fw-semibold">
+          <Button variant="light" size="lg" className="fw-semibold" onClick={() => openRegister('free')}>
             Create Free Account
           </Button>
         </Container>
@@ -246,7 +315,9 @@ export default function Landing() {
           <div className="landing-footer-links">
             <Link to="/privacy">Privacy</Link>
             <Link to="/terms">Terms</Link>
-            <Link to="/login">Sign In</Link>
+            <button type="button" className="btn btn-link p-0 landing-footer-link-btn" onClick={openLogin}>
+              Sign In
+            </button>
           </div>
         </Container>
       </footer>
