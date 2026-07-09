@@ -1,10 +1,18 @@
-import { Badge, Button, Form, InputGroup } from 'react-bootstrap';
+import { Badge, Button, ButtonGroup, Form, InputGroup } from 'react-bootstrap';
 
 export const MAX_BULK_SEO_SELECT = 20;
+
+export const SEO_SORT_OPTIONS = [
+  { value: 'default', label: 'Default' },
+  { value: 'worst', label: 'Worst SEO' },
+  { value: 'best', label: 'Best SEO' },
+];
 
 export default function StoreProductTableToolbar({
   searchQuery,
   onSearchChange,
+  seoSort,
+  onSeoSortChange,
   filteredCount,
   totalCount,
   selectedCount,
@@ -36,6 +44,22 @@ export default function StoreProductTableToolbar({
             ? `${filteredCount} of ${totalCount} shown`
             : `${totalCount} products`}
         </small>
+      </div>
+
+      <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <small className="text-muted me-1">Sort by SEO:</small>
+        <ButtonGroup size="sm">
+          {SEO_SORT_OPTIONS.map((option) => (
+            <Button
+              key={option.value}
+              variant={seoSort === option.value ? 'primary' : 'outline-secondary'}
+              onClick={() => onSeoSortChange(option.value)}
+              disabled={bulkRunning}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </ButtonGroup>
       </div>
 
       {selectedCount > 0 && (

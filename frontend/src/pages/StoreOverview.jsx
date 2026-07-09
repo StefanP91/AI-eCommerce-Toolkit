@@ -117,6 +117,7 @@ export default function StoreOverview() {
   const [auditProduct, setAuditProduct] = useState(null);
   const [auditSessionKey, setAuditSessionKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [seoSort, setSeoSort] = useState('default');
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkMode, setBulkMode] = useState(null);
   const [bulkItems, setBulkItems] = useState([]);
@@ -126,10 +127,19 @@ export default function StoreOverview() {
 
   const isPro = plan === 'pro';
 
-  const filteredProducts = useMemo(
-    () => products.filter((product) => matchesProductSearch(product, searchQuery)),
-    [products, searchQuery],
-  );
+  const filteredProducts = useMemo(() => {
+    const matched = products.filter((product) => matchesProductSearch(product, searchQuery));
+
+    if (seoSort === 'worst') {
+      return [...matched].sort((a, b) => (a.seo_score ?? -1) - (b.seo_score ?? -1));
+    }
+
+    if (seoSort === 'best') {
+      return [...matched].sort((a, b) => (b.seo_score ?? -1) - (a.seo_score ?? -1));
+    }
+
+    return matched;
+  }, [products, searchQuery, seoSort]);
 
   const selectedProducts = useMemo(
     () => products.filter((product) => selectedIds.has(product.id)),
@@ -294,6 +304,7 @@ export default function StoreOverview() {
       setVisitorPassword('');
       setSelectedIds(new Set());
       setSearchQuery('');
+      setSeoSort('default');
     } catch (err) {
       setError(err.response?.data?.message || 'Could not disconnect store.');
     }
@@ -669,6 +680,8 @@ export default function StoreOverview() {
                   <StoreProductTableToolbar
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}
+                    seoSort={seoSort}
+                    onSeoSortChange={setSeoSort}
                     filteredCount={filteredProducts.length}
                     totalCount={products.length}
                     selectedCount={selectedIds.size}
