@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
+import BrandLogo from '../components/BrandLogo';
 
 export default function Register() {
   const { register } = useAuth();
@@ -36,8 +37,8 @@ export default function Register() {
       <Card className="shadow border-0" style={{ width: 420 }}>
         <Card.Body className="p-4">
           <div className="text-center mb-4">
-            <h3 className="fw-bold">Create Account</h3>
-            <p className="text-muted">Start optimizing your products with AI</p>
+            <BrandLogo variant="light" className="brand-logo-auth mb-3" />
+            <p className="text-muted mb-0">Start optimizing your products with AI</p>
           </div>
 
           {error && <Alert variant="danger">{error}</Alert>}

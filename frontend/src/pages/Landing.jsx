@@ -57,8 +57,9 @@ export default function Landing() {
     <div className="landing-page">
       <LandingNavbar />
 
-      <section className="landing-hero">
-        <Container>
+      <div className="landing-hero-shell">
+        <section className="landing-hero">
+          <Container>
           <Row className="align-items-center g-5">
             <Col lg={7}>
               <Badge bg="primary" className="landing-hero-badge mb-3">Built for eCommerce sellers</Badge>
@@ -106,8 +107,9 @@ export default function Landing() {
               </Card>
             </Col>
           </Row>
-        </Container>
-      </section>
+          </Container>
+        </section>
+      </div>
 
       <section id="before-after" className="landing-section landing-section-alt">
         <Container>
@@ -238,7 +240,7 @@ export default function Landing() {
       <footer className="landing-footer">
         <Container className="d-flex flex-wrap justify-content-between align-items-center gap-3">
           <div className="d-flex align-items-center gap-2 text-white-50">
-            <img src="/favicon.svg" alt="" width={24} height={24} aria-hidden="true" />
+            <img src="/favicon.png" alt="" width={28} height={28} aria-hidden="true" />
             <span>AI Commerce Suite</span>
           </div>
           <div className="landing-footer-links">

@@ -2,6 +2,7 @@ import { NavLink, useNavigate, Link } from 'react-router-dom';
 import { Nav, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import CreditsBar from './CreditsBar';
+import BrandLogo from './BrandLogo';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: '📊' },
@@ -64,18 +65,10 @@ export default function Sidebar({ collapsed, onToggle }) {
       <div className={`sidebar-header border-bottom border-secondary ${collapsed ? 'sidebar-header-collapsed' : ''}`}>
         <div className={`sidebar-brand ${collapsed ? 'sidebar-brand-collapsed' : ''}`}>
           {collapsed ? (
-            <img
-              src="/favicon.svg"
-              alt="AI Commerce Suite"
-              className="sidebar-favicon"
-              title="AI Commerce Suite"
-            />
+            <BrandLogo showText={false} className="sidebar-favicon" />
           ) : (
             <>
-              <div className="d-flex align-items-center gap-2 mb-1">
-                <img src="/favicon.svg" alt="" className="sidebar-favicon-sm" aria-hidden="true" />
-                <h5 className="mb-0 fw-bold">AI Commerce Suite</h5>
-              </div>
+              <BrandLogo variant="dark" className="brand-logo-sidebar mb-2" />
               <small className="text-secondary">Optimize products with AI</small>
             </>
           )}

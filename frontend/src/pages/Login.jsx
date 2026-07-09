@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
+import BrandLogo from '../components/BrandLogo';
 
 export default function Login() {
   const { login } = useAuth();
@@ -30,8 +31,8 @@ export default function Login() {
       <Card className="shadow border-0" style={{ width: 420 }}>
         <Card.Body className="p-4">
           <div className="text-center mb-4">
-            <h3 className="fw-bold">AI Commerce Suite</h3>
-            <p className="text-muted">Optimize your eCommerce products in seconds</p>
+            <BrandLogo variant="light" className="brand-logo-auth mb-3" />
+            <p className="text-muted mb-0">Optimize your eCommerce products in seconds</p>
           </div>
 
           {error && <Alert variant="danger">{error}</Alert>}
