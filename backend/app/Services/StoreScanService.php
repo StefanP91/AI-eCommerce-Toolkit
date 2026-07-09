@@ -142,18 +142,48 @@ class StoreScanService
             'last_scanned_at' => now(),
         ]);
 
+        $fresh = $storeProduct->fresh();
+        $this->syncDuplicateStoreProductsByUrl($store, $url, $fresh);
+
         $this->refreshStoreAggregates($store);
 
-        return $storeProduct->fresh();
+        return $fresh;
+    }
+
+    public function syncDuplicateStoreProductsByUrl(
+        StoreConnection $store,
+        string $url,
+        \App\Models\StoreProduct $source,
+    ): void {
+        foreach ($this->findAllStoreProductsByUrl($store, $url) as $duplicate) {
+            if ($duplicate->id === $source->id) {
+                continue;
+            }
+
+            $duplicate->update([
+                'seo_score' => $source->seo_score,
+                'seo_checks' => $source->seo_checks,
+                'status' => $source->status,
+                'error_message' => $source->error_message,
+                'last_scanned_at' => $source->last_scanned_at,
+            ]);
+        }
     }
 
     public function findStoreProductByUrl(StoreConnection $store, string $url): ?\App\Models\StoreProduct
+    {
+        return $this->findAllStoreProductsByUrl($store, $url)[0] ?? null;
+    }
+
+    public function findAllStoreProductsByUrl(StoreConnection $store, string $url): array
     {
         $target = $this->sitemapService->normalizeProductUrl($url);
 
         return $store->products()
             ->get()
-            ->first(fn (\App\Models\StoreProduct $product) => $this->sitemapService->normalizeProductUrl($product->url) === $target);
+            ->filter(fn (\App\Models\StoreProduct $product) => $this->sitemapService->normalizeProductUrl($product->url) === $target)
+            ->values()
+            ->all();
     }
 
     private function refreshStoreAggregates(StoreConnection $store): void

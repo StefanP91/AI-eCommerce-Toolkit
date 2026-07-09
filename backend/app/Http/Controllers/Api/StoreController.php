@@ -142,20 +142,32 @@ class StoreController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $storeProduct = $this->scanService->findStoreProductByUrl($store, $validated['product_url']);
-        if (! $storeProduct) {
-            $storeProduct = $this->findStoreProductByUrlCandidates($store, $validated['product_url']);
+        $storeProducts = $this->scanService->findAllStoreProductsByUrl($store, $validated['product_url']);
+        if ($storeProducts === []) {
+            $fallback = $this->findStoreProductByUrlCandidates($store, $validated['product_url']);
+            if ($fallback) {
+                $storeProducts = [$fallback];
+            }
         }
-        if ($storeProduct) {
-            $storeProduct->update([
-                'product_name' => $result['extracted']['product_name'] ?? $storeProduct->product_name,
+
+        $storeProduct = null;
+        foreach ($storeProducts as $product) {
+            $product->update([
+                'product_name' => $result['extracted']['product_name'] ?? $product->product_name,
                 'seo_score' => $result['score'],
                 'seo_checks' => $result['checks'],
                 'status' => 'scanned',
                 'error_message' => null,
                 'last_scanned_at' => now(),
             ]);
+            $storeProduct ??= $product;
+        }
 
+        if ($storeProduct) {
+            $this->scanService->syncDuplicateStoreProductsByUrl($store, $validated['product_url'], $storeProduct);
+        }
+
+        if ($storeProducts !== []) {
             $avgScore = $store->products()->whereNotNull('seo_score')->avg('seo_score');
             $store->update([
                 'avg_seo_score' => $avgScore !== null ? (int) round($avgScore) : null,

@@ -128,7 +128,25 @@ export default function StoreProductAuditFix({
     }
   };
 
-  const handlePushSuccess = async () => {
+  const handlePushSuccess = async (pushData) => {
+    if (pushData?.store_product) {
+      await onStoreRefresh?.({
+        store: pushData.store ?? null,
+        mergeProduct: pushData.store_product,
+        skipProductsRefetch: true,
+      });
+      const score = pushData.live_score ?? pushData.store_product.seo_score;
+      if (score != null) {
+        setLivePageAudit((previous) => ({
+          ...(previous ?? auditResult ?? {}),
+          score,
+          checks: pushData.store_product.seo_checks ?? previous?.checks,
+        }));
+      }
+      setPhase('done');
+      return;
+    }
+
     await runAudit(true);
   };
 

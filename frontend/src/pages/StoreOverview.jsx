@@ -43,6 +43,35 @@ function normalizeUrlKey(url) {
   return (url || '').replace(/\/$/, '').toLowerCase().split('?')[0];
 }
 
+function storeProductScorePatch(source) {
+  if (!source) return null;
+
+  return {
+    seo_score: source.seo_score,
+    seo_checks: source.seo_checks,
+    status: source.status,
+    error_message: source.error_message,
+    last_scanned_at: source.last_scanned_at,
+    product_name: source.product_name,
+  };
+}
+
+function applyStoreProductMerge(item, mergeProduct) {
+  if (!mergeProduct) return item;
+
+  if (item.id === mergeProduct.id) {
+    return { ...item, ...mergeProduct };
+  }
+
+  const itemKey = normalizeUrlKey(item.url);
+  const mergeKey = normalizeUrlKey(mergeProduct.url);
+  if (itemKey && mergeKey && itemKey === mergeKey) {
+    return { ...item, ...storeProductScorePatch(mergeProduct) };
+  }
+
+  return item;
+}
+
 function scoreBadge(score) {
   if (score == null) return 'secondary';
   if (score >= 90) return 'success';
@@ -174,19 +203,7 @@ export default function StoreOverview() {
       if (productsData) {
         setProducts(productsData);
       } else if (mergeProduct) {
-        setProducts((current) => current.map((item) => {
-          if (item.id === mergeProduct.id) {
-            return { ...item, ...mergeProduct };
-          }
-
-          const itemUrl = (item.url || '').replace(/\/$/, '').toLowerCase();
-          const mergeUrl = (mergeProduct.url || '').replace(/\/$/, '').toLowerCase();
-          if (itemUrl && mergeUrl && itemUrl === mergeUrl) {
-            return { ...item, ...mergeProduct };
-          }
-
-          return item;
-        }));
+        setProducts((current) => current.map((item) => applyStoreProductMerge(item, mergeProduct)));
       } else if (nextStore && !skipProductsRefetch) {
         const productsRes = await api.get('/store/products');
         setProducts(productsRes.data.data || []);
@@ -197,17 +214,7 @@ export default function StoreOverview() {
       if (mergeProduct) {
         setAuditProduct((current) => {
           if (!current) return null;
-          if (current.id === mergeProduct.id) {
-            return { ...current, ...mergeProduct };
-          }
-
-          const currentUrl = (current.url || '').replace(/\/$/, '').toLowerCase();
-          const mergeUrl = (mergeProduct.url || '').replace(/\/$/, '').toLowerCase();
-          if (currentUrl && mergeUrl && currentUrl === mergeUrl) {
-            return { ...current, ...mergeProduct };
-          }
-
-          return current;
+          return applyStoreProductMerge(current, mergeProduct);
         });
       } else if (productsData) {
         setAuditProduct((current) => {
@@ -353,17 +360,18 @@ export default function StoreOverview() {
 
   const mergeStoreProduct = (mergeProduct) => {
     if (!mergeProduct) return;
-    setProducts((current) => current.map((item) => {
-      if (item.id === mergeProduct.id) {
-        return { ...item, ...mergeProduct };
-      }
-      const itemUrl = (item.url || '').replace(/\/$/, '').toLowerCase();
-      const mergeUrl = (mergeProduct.url || '').replace(/\/$/, '').toLowerCase();
-      if (itemUrl && mergeUrl && itemUrl === mergeUrl) {
-        return { ...item, ...mergeProduct };
-      }
-      return item;
-    }));
+    setProducts((current) => current.map((item) => applyStoreProductMerge(item, mergeProduct)));
+  };
+
+  const applyAuditScoreToUrl = (url, auditData) => {
+    const key = normalizeUrlKey(url);
+    if (!key || auditData?.score == null) return;
+
+    setProducts((current) => current.map((item) => (
+      normalizeUrlKey(item.url) === key
+        ? { ...item, seo_score: auditData.score, status: 'scanned' }
+        : item
+    )));
   };
 
   const handleBulkAudit = async () => {
@@ -474,12 +482,22 @@ export default function StoreOverview() {
     bulkProjectByUrl[normalizeUrlKey(storeProduct.url)]
   );
 
-  const resolvePushTargets = (storeProducts) => storeProducts
-    .map((storeProduct) => ({
-      storeProduct,
-      projectId: getProjectIdForStoreProduct(storeProduct),
-    }))
-    .filter((entry) => entry.projectId);
+  const resolvePushTargets = (storeProducts) => {
+    const seen = new Set();
+
+    return storeProducts
+      .map((storeProduct) => ({
+        storeProduct,
+        projectId: getProjectIdForStoreProduct(storeProduct),
+      }))
+      .filter((entry) => entry.projectId)
+      .filter((entry) => {
+        const key = normalizeUrlKey(entry.storeProduct.url);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  };
 
   const selectedPushableCount = resolvePushTargets(selectedProducts).length;
   const bulkPushableCount = resolvePushTargets(bulkItems).length;
@@ -514,20 +532,28 @@ export default function StoreOverview() {
         const { storeProduct, projectId } = targets[index];
         setBulkIndex(index);
 
-        await api.post(`/products/${projectId}/push-to-store`);
+        const pushRes = await api.post(`/products/${projectId}/push-to-store`);
 
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        if (pushRes.data.store_product) {
+          mergeStoreProduct(pushRes.data.store_product);
+        } else {
+          const auditRes = await api.post('/store/audit-url', {
+            product_url: storeProduct.url,
+            bust_cache: true,
+          });
+          if (auditRes.data.store_product) {
+            mergeStoreProduct(auditRes.data.store_product);
+          } else {
+            applyAuditScoreToUrl(storeProduct.url, auditRes.data);
+          }
+        }
 
-        const auditRes = await api.post('/store/audit-url', {
-          product_url: storeProduct.url,
-          bust_cache: true,
-        });
-        mergeStoreProduct(auditRes.data.store_product);
-        if (auditRes.data.store) {
-          setStore(auditRes.data.store);
+        if (pushRes.data.store) {
+          setStore(pushRes.data.store);
         }
       }
 
+      await loadStore();
       setBulkIndex(targets.length);
       setBulkCompletedAction('push');
     } catch (err) {
