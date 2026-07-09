@@ -49,4 +49,11 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
     ],
 
+    'shopify' => [
+        'api_key' => env('SHOPIFY_API_KEY'),
+        'api_secret' => env('SHOPIFY_API_SECRET'),
+        'scopes' => env('SHOPIFY_SCOPES', 'read_products,write_products'),
+        'redirect_uri' => env('SHOPIFY_REDIRECT_URI', rtrim((string) env('APP_URL', 'http://localhost:8000'), '/').'/api/auth/shopify/callback'),
+    ],
+
 ];

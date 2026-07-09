@@ -13,6 +13,7 @@ import {
 } from 'react-bootstrap';
 import api from '../../api/client';
 import { STORE_API_GUIDES } from '../../constants/storePublish';
+import ShopifyConnectButton from './ShopifyConnectButton';
 
 function EyeIcon({ slashed = false }) {
   if (slashed) {
@@ -150,6 +151,7 @@ export default function StoreApiSetup({ store, onUpdated }) {
           <Alert variant="success" className="d-flex flex-wrap justify-content-between align-items-center gap-2">
             <span>
               API connected for <strong>{store.platform}</strong>
+              {store.connection_method === 'oauth' && ' via OAuth'}
               {store.api_connected_at && (
                 <span className="text-muted">
                   {' '}· since {new Date(store.api_connected_at).toLocaleString()}
@@ -234,14 +236,27 @@ export default function StoreApiSetup({ store, onUpdated }) {
 
         <Card className="border bg-light mt-4">
           <Card.Body className="py-3">
-            <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div className="d-flex flex-wrap justify-content-between align-items-start gap-3">
               <div>
-                <strong>Level 3: Connect with Shopify</strong>
-                <div className="small text-muted">One-click OAuth sign-in — no manual API keys.</div>
+                <div className="d-flex align-items-center gap-2 mb-1">
+                  <Badge bg="secondary">Level 3</Badge>
+                  <strong>Connect with Shopify</strong>
+                </div>
+                <div className="small text-muted">
+                  One-click OAuth sign-in — no manual API keys.
+                </div>
               </div>
-              <Button variant="secondary" size="sm" disabled>
-                Coming soon
-              </Button>
+            </div>
+            <div className="mt-3" style={{ maxWidth: 420 }}>
+              <ShopifyConnectButton
+                store={store}
+                defaultShop={
+                  store?.store_url?.includes('myshopify.com')
+                    ? store.store_url.replace(/^https?:\/\//, '').split('/')[0]
+                    : ''
+                }
+                onConnected={onUpdated}
+              />
             </div>
           </Card.Body>
         </Card>

@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\HistoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SettingsController;
+use App\Http\Controllers\Api\ShopifyAuthController;
 use App\Http\Controllers\Api\StoreController;
 use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\ToolController;
@@ -19,6 +20,7 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::post('/analytics/visit', [AnalyticsController::class, 'track']);
+Route::get('/auth/shopify/callback', [ShopifyAuthController::class, 'callback']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -63,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/store/products', [StoreController::class, 'products']);
     Route::post('/store/api', [StoreController::class, 'connectApi']);
     Route::delete('/store/api', [StoreController::class, 'disconnectApi']);
+    Route::get('/store/shopify/oauth', [ShopifyAuthController::class, 'redirect']);
     Route::delete('/store', [StoreController::class, 'destroy']);
 
         Route::middleware('admin')->prefix('admin')->group(function () {

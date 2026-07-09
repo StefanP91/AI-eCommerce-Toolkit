@@ -20,6 +20,7 @@ class StoreApiCredentialsService
         return match ($platform) {
             'shopify' => [
                 'admin_access_token' => trim((string) ($credentials['admin_access_token'] ?? '')),
+                'connection_type' => 'manual',
             ],
             'woocommerce' => [
                 'consumer_key' => trim((string) ($credentials['consumer_key'] ?? '')),
@@ -31,7 +32,7 @@ class StoreApiCredentialsService
 
     private function validateShopify(string $storeUrl, array $credentials): void
     {
-        $token = trim((string) ($credentials['admin_access_token'] ?? ''));
+        $token = trim((string) ($credentials['access_token'] ?? $credentials['admin_access_token'] ?? ''));
         if ($token === '') {
             throw new \InvalidArgumentException('Shopify Admin API access token is required.');
         }

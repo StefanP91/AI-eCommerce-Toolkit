@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, Badge, Button, Card, Col, Row } from 'react-bootstrap';
-import { PLATFORM_EXPORTS } from '../constants/platformExports';
-import { MANUAL_PUBLISH_STEPS } from '../constants/storePublish';
-import { downloadExport } from '../utils/download';
+import { PLATFORM_EXPORTS } from '../../constants/platformExports';
+import { MANUAL_PUBLISH_STEPS } from '../../constants/storePublish';
+import { downloadExport } from '../../utils/download';
+import ShopifyConnectButton from './ShopifyConnectButton';
 
 export default function PublishToStorePanel({
   productId = null,
@@ -99,7 +100,8 @@ export default function PublishToStorePanel({
                 </p>
                 {store?.has_api_connection ? (
                   <Alert variant="success" className="small py-2 mb-3">
-                    API connected for <strong>{store.platform}</strong>. One-click push is coming soon.
+                    API connected for <strong>{store.platform}</strong>
+                    {store.connection_method === 'oauth' ? ' via OAuth' : ''}. One-click push is coming soon.
                   </Alert>
                 ) : (
                   <p className="small text-muted mb-3">
@@ -125,10 +127,14 @@ export default function PublishToStorePanel({
                 <p className="text-muted small">
                   Sign in with Shopify and approve access. No API keys to copy.
                 </p>
-                <Button variant="secondary" size="sm" disabled className="mb-2">
-                  Connect with Shopify
-                </Button>
-                <div className="small text-muted">Coming soon — OAuth integration</div>
+                <ShopifyConnectButton
+                  store={store}
+                  defaultShop={
+                    store?.store_url?.includes('myshopify.com')
+                      ? store.store_url.replace(/^https?:\/\//, '').split('/')[0]
+                      : ''
+                  }
+                />
               </Card.Body>
             </Card>
           </Col>

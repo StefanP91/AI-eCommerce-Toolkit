@@ -216,6 +216,9 @@ class StoreController extends Controller
             'has_visitor_password' => filled($store->store_password),
             'platform' => $store->platform,
             'has_api_connection' => $store->hasApiConnection(),
+            'connection_method' => $store->api_credentials['connection_type'] ?? null,
+            'shopify_oauth_enabled' => filled(config('services.shopify.api_key'))
+                && filled(config('services.shopify.api_secret')),
             'api_connected_at' => $store->api_connected_at?->toIso8601String(),
             'push_available' => false,
             'status' => $store->status,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Badge,
@@ -81,6 +81,7 @@ function VisitorPasswordInput({ value, onChange, placeholder, id }) {
 
 export default function StoreOverview() {
   const { user, refreshUser } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
   const [storeUrl, setStoreUrl] = useState('');
@@ -90,6 +91,7 @@ export default function StoreOverview() {
   const [submitting, setSubmitting] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState('');
+  const [oauthMessage, setOauthMessage] = useState('');
 
   const isPro = plan === 'pro';
 
@@ -127,6 +129,22 @@ export default function StoreOverview() {
 
     loadPage();
   }, [refreshUser]);
+
+  useEffect(() => {
+    const shopifyStatus = searchParams.get('shopify');
+    if (!shopifyStatus) return;
+
+    if (shopifyStatus === 'connected') {
+      setOauthMessage('Shopify store connected successfully via OAuth.');
+      loadStore();
+    } else if (shopifyStatus === 'error') {
+      setError(searchParams.get('message') || 'Shopify connection failed.');
+    }
+
+    searchParams.delete('shopify');
+    searchParams.delete('message');
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const handleConnect = async (e) => {
     e.preventDefault();
@@ -215,6 +233,7 @@ export default function StoreOverview() {
       </div>
 
       {error && <Alert variant="danger">{error}</Alert>}
+      {oauthMessage && <Alert variant="success">{oauthMessage}</Alert>}
 
       {!store ? (
         isPro ? (
