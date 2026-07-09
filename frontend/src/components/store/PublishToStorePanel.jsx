@@ -127,11 +127,12 @@ export default function PublishToStorePanel({
                     {store.push_available && productId && (
                       <div className="mb-3">
                         <Button variant="primary" size="sm" onClick={handlePush} disabled={pushing}>
-                          {pushing ? 'Pushing...' : 'Push to Shopify'}
+                          {pushing ? 'Syncing...' : 'Push to Shopify'}
                         </Button>
                         {pushResult && (
                           <Alert variant="success" className="small mt-2 mb-0 py-2">
                             {pushResult.message}{' '}
+                            {pushResult.shopify?.action === 'updated' && '(updated existing product) '}
                             {pushResult.shopify?.admin_url && (
                               <a href={pushResult.shopify.admin_url} target="_blank" rel="noreferrer">
                                 View in Shopify Admin

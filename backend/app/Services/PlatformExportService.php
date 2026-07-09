@@ -175,7 +175,7 @@ class PlatformExportService
         ];
     }
 
-    public function shopifyProductPayload(Product $product): array
+    public function shopifyProductPayload(Product $product, bool $forUpdate = false): array
     {
         $fields = $this->contentFields($product);
         $content = $product->generated_content ?? [];
@@ -188,18 +188,26 @@ class PlatformExportService
             'product_type' => $fields['category'],
             'tags' => $fields['tags'],
             'status' => 'active',
-            'variants' => [
+        ];
+
+        if (! $forUpdate) {
+            $urlHandle = $this->handleFromUrl($product->product_url);
+            if ($urlHandle !== null) {
+                $payload['handle'] = $urlHandle;
+            }
+
+            $payload['variants'] = [
                 [
                     'price' => '0.00',
-                    'sku' => $handle,
+                    'sku' => $urlHandle ?? $handle,
                     'inventory_management' => 'shopify',
                     'inventory_quantity' => 0,
                     'inventory_policy' => 'deny',
                     'requires_shipping' => true,
                     'taxable' => true,
                 ],
-            ],
-        ];
+            ];
+        }
 
         $metafields = [];
         if ($fields['meta_title'] !== '') {
@@ -284,6 +292,20 @@ class PlatformExportService
         $handle = Str::slug($name);
 
         return $handle !== '' ? $handle : 'product';
+    }
+
+    public function handleFromUrl(?string $url): ?string
+    {
+        if (! $url) {
+            return null;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH) ?? '';
+        if (preg_match('#/products/([^/?#]+)#', $path, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
     }
 
     private function toHtml(string $text): string

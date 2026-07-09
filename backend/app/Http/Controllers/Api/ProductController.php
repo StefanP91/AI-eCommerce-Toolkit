@@ -262,8 +262,14 @@ class ProductController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
+        $product->update(['shopify_product_id' => $result['shopify_product_id']]);
+
+        $message = $result['action'] === 'updated'
+            ? 'Product updated on Shopify successfully.'
+            : 'Product published to Shopify successfully.';
+
         return response()->json([
-            'message' => 'Product published to Shopify successfully.',
+            'message' => $message,
             'shopify' => $result,
         ]);
     }

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Product;
 use App\Models\StoreConnection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class ShopifyProductPushService
 {
@@ -26,15 +27,23 @@ class ShopifyProductPushService
 
         $host = $this->resolveShopHost($store);
         $token = $this->resolveToken($store);
+        $existingId = $this->resolveExistingProductId($host, $token, $product);
 
-        $response = Http::withHeaders([
-            'X-Shopify-Access-Token' => $token,
-            'Accept' => 'application/json',
-            'Content-Type' => 'application/json',
-        ])->timeout(30)->post(
-            "https://{$host}/admin/api/".self::API_VERSION.'/products.json',
-            ['product' => $this->platformExport->shopifyProductPayload($product)]
-        );
+        if ($existingId) {
+            return $this->updateProduct($host, $token, $product, $existingId);
+        }
+
+        return $this->createProduct($host, $token, $product);
+    }
+
+    private function createProduct(string $host, string $token, Product $product): array
+    {
+        $response = Http::withHeaders($this->headers($token))
+            ->timeout(30)
+            ->post(
+                $this->apiUrl($host, 'products.json'),
+                ['product' => $this->platformExport->shopifyProductPayload($product)]
+            );
 
         if (! $response->successful()) {
             throw new \RuntimeException($this->formatShopifyError($response->json('errors') ?? $response->body()));
@@ -43,11 +52,153 @@ class ShopifyProductPushService
         $created = $response->json('product');
 
         return [
+            'action' => 'created',
             'shopify_product_id' => $created['id'],
             'admin_url' => "https://{$host}/admin/products/{$created['id']}",
             'title' => $created['title'],
             'handle' => $created['handle'],
         ];
+    }
+
+    private function updateProduct(string $host, string $token, Product $product, int $shopifyProductId): array
+    {
+        $payload = $this->platformExport->shopifyProductPayload($product, forUpdate: true);
+        $payload['id'] = $shopifyProductId;
+
+        $response = Http::withHeaders($this->headers($token))
+            ->timeout(30)
+            ->put(
+                $this->apiUrl($host, "products/{$shopifyProductId}.json"),
+                ['product' => $payload]
+            );
+
+        if (! $response->successful()) {
+            throw new \RuntimeException($this->formatShopifyError($response->json('errors') ?? $response->body()));
+        }
+
+        $updated = $response->json('product');
+        $this->updateSeoMetafields($host, $token, $shopifyProductId, $product);
+
+        return [
+            'action' => 'updated',
+            'shopify_product_id' => $updated['id'],
+            'admin_url' => "https://{$host}/admin/products/{$updated['id']}",
+            'title' => $updated['title'],
+            'handle' => $updated['handle'],
+        ];
+    }
+
+    private function resolveExistingProductId(string $host, string $token, Product $product): ?int
+    {
+        if ($product->shopify_product_id) {
+            return (int) $product->shopify_product_id;
+        }
+
+        $urlHandle = $this->platformExport->handleFromUrl($product->product_url);
+        if ($urlHandle) {
+            $found = $this->findProductIdByHandle($host, $token, $urlHandle);
+            if ($found) {
+                return $found;
+            }
+        }
+
+        $nameHandle = Str::slug((string) $product->product_name);
+        if ($nameHandle !== '') {
+            return $this->findProductIdByHandle($host, $token, $nameHandle);
+        }
+
+        return null;
+    }
+
+    private function findProductIdByHandle(string $host, string $token, string $handle): ?int
+    {
+        $response = Http::withHeaders($this->headers($token))
+            ->timeout(20)
+            ->get($this->apiUrl($host, 'products.json'), [
+                'handle' => $handle,
+                'limit' => 1,
+            ]);
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $products = $response->json('products') ?? [];
+
+        return isset($products[0]['id']) ? (int) $products[0]['id'] : null;
+    }
+
+    private function updateSeoMetafields(string $host, string $token, int $shopifyProductId, Product $product): void
+    {
+        $content = $product->generated_content ?? [];
+        $metaTitle = $content['meta_title'] ?? $content['seo_title'] ?? '';
+        $metaDescription = $content['meta_description'] ?? '';
+
+        if ($metaTitle !== '') {
+            $this->upsertProductMetafield($host, $token, $shopifyProductId, 'title_tag', $metaTitle);
+        }
+
+        if ($metaDescription !== '') {
+            $this->upsertProductMetafield($host, $token, $shopifyProductId, 'description_tag', $metaDescription);
+        }
+    }
+
+    private function upsertProductMetafield(
+        string $host,
+        string $token,
+        int $shopifyProductId,
+        string $key,
+        string $value,
+    ): void {
+        $listResponse = Http::withHeaders($this->headers($token))
+            ->timeout(20)
+            ->get($this->apiUrl($host, "products/{$shopifyProductId}/metafields.json"));
+
+        if (! $listResponse->successful()) {
+            return;
+        }
+
+        $existing = collect($listResponse->json('metafields') ?? [])
+            ->first(fn (array $metafield) => ($metafield['namespace'] ?? '') === 'global' && ($metafield['key'] ?? '') === $key);
+
+        if ($existing) {
+            Http::withHeaders($this->headers($token))
+                ->timeout(20)
+                ->put($this->apiUrl($host, "metafields/{$existing['id']}.json"), [
+                    'metafield' => [
+                        'id' => $existing['id'],
+                        'value' => $value,
+                        'type' => 'single_line_text_field',
+                    ],
+                ]);
+
+            return;
+        }
+
+        Http::withHeaders($this->headers($token))
+            ->timeout(20)
+            ->post($this->apiUrl($host, "products/{$shopifyProductId}/metafields.json"), [
+                'metafield' => [
+                    'namespace' => 'global',
+                    'key' => $key,
+                    'value' => $value,
+                    'type' => 'single_line_text_field',
+                ],
+            ]);
+    }
+
+    private function headers(string $token): array
+    {
+        return [
+            'X-Shopify-Access-Token' => $token,
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        ];
+    }
+
+    private function apiUrl(string $host, string $path): string
+    {
+        return "https://{$host}/admin/api/".self::API_VERSION.'/'.$path;
     }
 
     private function resolveToken(StoreConnection $store): string
@@ -88,6 +239,6 @@ class ShopifyProductPushService
             return 'Shopify error: '.json_encode($error);
         }
 
-        return 'Could not create product on Shopify. Please try again.';
+        return 'Could not sync product on Shopify. Please try again.';
     }
 }

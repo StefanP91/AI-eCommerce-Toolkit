@@ -21,6 +21,7 @@ class Product extends Model
         'generated_content',
         'seo_score',
         'seo_checks',
+        'shopify_product_id',
     ];
 
     protected function casts(): array
