@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -23,6 +23,8 @@ import StoreApiSetup from '../components/store/StoreApiSetup';
 import StoreProductAuditFix from '../components/store/StoreProductAuditFix';
 import StoreProductTableToolbar, { MAX_BULK_SEO_SELECT } from '../components/store/StoreProductTableToolbar';
 import StoreBulkSeoProgress from '../components/store/StoreBulkSeoProgress';
+import StoreScanProgress from '../components/store/StoreScanProgress';
+import { runFullStoreScan } from '../utils/runFullStoreScan';
 import PublishToStorePanel from '../components/store/PublishToStorePanel';
 import { notifyCreditsUpdated } from '../utils/credits';
 
@@ -109,7 +111,9 @@ export default function StoreOverview() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [scanningMore, setScanningMore] = useState(false);
+  const [scanProgress, setScanProgress] = useState(null);
+  const scanInProgressRef = useRef(false);
+  const resumeAttemptedRef = useRef(false);
   const [error, setError] = useState('');
   const [oauthMessage, setOauthMessage] = useState('');
   const [auditProduct, setAuditProduct] = useState(null);
@@ -145,13 +149,7 @@ export default function StoreOverview() {
   };
 
   const isPro = plan === 'pro';
-
-  const hasMoreProducts = Boolean(
-    store?.catalog_product_count && store.catalog_product_count > (store.product_count ?? 0),
-  );
-  const remainingProducts = hasMoreProducts
-    ? store.catalog_product_count - store.product_count
-    : 0;
+  const scanActive = Boolean(scanProgress?.active) || store?.status === 'scanning';
 
   const filteredProducts = useMemo(() => {
     const matched = products.filter((product) => matchesProductSearch(product, searchQuery));
@@ -254,6 +252,107 @@ export default function StoreOverview() {
     setSearchParams(searchParams, { replace: true });
   }, [searchParams, setSearchParams]);
 
+  const runStoreScan = async ({ resume = false } = {}) => {
+    if (scanInProgressRef.current) {
+      return null;
+    }
+
+    scanInProgressRef.current = true;
+    setScanning(true);
+    setScanProgress({
+      active: true,
+      phase: resume ? 'scanning' : 'starting',
+      scanned: store?.product_count ?? 0,
+      total: store?.catalog_product_count ?? 0,
+      percent: 0,
+      etaMs: null,
+    });
+
+    try {
+      const updatedStore = await runFullStoreScan({
+        api,
+        visitorPassword,
+        resume,
+        onProgress: async (progress) => {
+          setScanProgress({
+            active: progress.phase !== 'complete',
+            phase: progress.phase,
+            scanned: progress.scanned,
+            total: progress.total,
+            percent: progress.percent,
+            etaMs: progress.etaMs,
+          });
+
+          if (progress.store) {
+            setStore(progress.store);
+            await loadStore({ store: progress.store });
+          }
+        },
+      });
+
+      setStore(updatedStore);
+      await loadStore({ store: updatedStore });
+      setScanProgress({
+        active: false,
+        phase: 'complete',
+        scanned: updatedStore.product_count ?? 0,
+        total: updatedStore.catalog_product_count ?? updatedStore.product_count ?? 0,
+        percent: 100,
+        etaMs: 0,
+      });
+
+      return updatedStore;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Store scan failed.');
+      if (err.response?.data?.store) {
+        setStore(err.response.data.store);
+        await loadStore({ store: err.response.data.store });
+      }
+      setScanProgress(null);
+      return null;
+    } finally {
+      scanInProgressRef.current = false;
+      setScanning(false);
+    }
+  };
+
+  useEffect(() => {
+    resumeAttemptedRef.current = false;
+  }, [store?.id]);
+
+  useEffect(() => {
+    if (scanProgress?.phase !== 'complete') {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setScanProgress(null);
+    }, 4000);
+
+    return () => window.clearTimeout(timeout);
+  }, [scanProgress?.phase]);
+
+  useEffect(() => {
+    if (loading || !store || scanInProgressRef.current) {
+      return;
+    }
+
+    const incomplete = (store.catalog_product_count ?? 0) > 0
+      && (store.product_count ?? 0) < store.catalog_product_count
+      && store.status !== 'error';
+
+    if (!incomplete) {
+      return;
+    }
+
+    if (resumeAttemptedRef.current) {
+      return;
+    }
+
+    resumeAttemptedRef.current = true;
+    void runStoreScan({ resume: (store.product_count ?? 0) > 0 });
+  }, [loading, store?.id, store?.product_count, store?.catalog_product_count, store?.status]);
+
   const handleConnect = async (e) => {
     e.preventDefault();
     setError('');
@@ -279,9 +378,15 @@ export default function StoreOverview() {
       if (visitorPassword.trim()) {
         payload.visitor_password = visitorPassword;
       }
-      const res = await api.post('/store', payload, { timeout: 600000 });
+      const res = await api.post('/store', payload, { timeout: 120000 });
       setStore(res.data.store);
-      await loadStore();
+
+      if (res.data.store?.status === 'error') {
+        setError(res.data.message || 'Could not connect store.');
+        return;
+      }
+
+      await runStoreScan({ resume: false });
     } catch (err) {
       setError(err.response?.data?.message || 'Could not connect store.');
       if (err.response?.data?.store) {
@@ -294,40 +399,7 @@ export default function StoreOverview() {
 
   const handleRescan = async () => {
     setError('');
-    setScanning(true);
-    try {
-      const payload = {};
-      if (visitorPassword.trim()) {
-        payload.visitor_password = visitorPassword;
-      }
-      const res = await api.post('/store/scan', payload, { timeout: 600000 });
-      setStore(res.data.store);
-      await loadStore();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Store scan failed.');
-      if (err.response?.data?.store) {
-        setStore(err.response.data.store);
-      }
-    } finally {
-      setScanning(false);
-    }
-  };
-
-  const handleScanMore = async () => {
-    setError('');
-    setScanningMore(true);
-    try {
-      const res = await api.post('/store/scan', { append: true }, { timeout: 600000 });
-      setStore(res.data.store);
-      await loadStore();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Could not scan more products.');
-      if (err.response?.data?.store) {
-        setStore(err.response.data.store);
-      }
-    } finally {
-      setScanningMore(false);
-    }
+    await runStoreScan({ resume: false });
   };
 
   const handleDisconnect = async () => {
@@ -649,16 +721,9 @@ export default function StoreOverview() {
         </div>
         {store && (
           <div className="d-flex gap-2 flex-wrap">
-            <Button variant="outline-primary" size="sm" onClick={handleRescan} disabled={scanning || scanningMore}>
-              {scanning ? 'Scanning...' : 'Rescan Store'}
+            <Button variant="outline-primary" size="sm" onClick={handleRescan} disabled={scanActive}>
+              {scanActive ? 'Scanning...' : 'Rescan Store'}
             </Button>
-            {hasMoreProducts && (
-              <Button variant="primary" size="sm" onClick={handleScanMore} disabled={scanning || scanningMore}>
-                {scanningMore
-                  ? 'Scanning more...'
-                  : `Scan more (${Math.min(remainingProducts, 100)})`}
-              </Button>
-            )}
             <Button variant="outline-danger" size="sm" onClick={handleDisconnect}>
               Disconnect
             </Button>
@@ -708,6 +773,15 @@ export default function StoreOverview() {
         )
       ) : (
         <>
+          <StoreScanProgress
+            active={scanProgress?.active || store.status === 'scanning'}
+            phase={scanProgress?.phase ?? (store.status === 'scanning' ? 'scanning' : 'idle')}
+            scanned={scanProgress?.scanned ?? store.product_count ?? 0}
+            total={scanProgress?.total ?? store.catalog_product_count ?? 0}
+            percent={scanProgress?.percent ?? 0}
+            etaMs={scanProgress?.etaMs ?? null}
+          />
+
           {store.status === 'error' && store.error_message && (
             <Alert variant="warning">{store.error_message}</Alert>
           )}
@@ -729,8 +803,8 @@ export default function StoreOverview() {
                     />
                   </Col>
                   <Col md="auto">
-                    <Button variant="outline-primary" onClick={handleRescan} disabled={scanning || scanningMore}>
-                      {scanning ? 'Scanning...' : 'Save & Rescan'}
+                    <Button variant="outline-primary" onClick={handleRescan} disabled={scanActive}>
+                      {scanActive ? 'Scanning...' : 'Save & Rescan'}
                     </Button>
                   </Col>
                 </Row>

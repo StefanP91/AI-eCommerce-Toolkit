@@ -204,7 +204,7 @@ export const STORE_PLATFORMS = [
       'Publish your site and confirm store products are live.',
       'Copy your homepage URL from the live site.',
       'Squarespace exposes a sitemap at /sitemap.xml on most plans.',
-      'Paste the URL below to scan product pages (100 per batch).',
+      'Paste the URL below — all discoverable products are scanned automatically.',
       'Copy optimized fields into Squarespace product pages manually.',
     ],
     publishSteps: [

@@ -83,12 +83,13 @@ class StoreController extends Controller
             $attributes
         );
 
-        $store = $this->scanService->scan($store);
+        $store->products()->delete();
+        $store = $this->scanService->discoverCatalog($store);
 
         return response()->json([
-            'message' => $store->status === 'ready'
-                ? 'Store connected and scanned successfully.'
-                : ($store->error_message ?? 'Store connected, but scanning failed.'),
+            'message' => $store->status === 'error'
+                ? ($store->error_message ?? 'Store connected, but catalog discovery failed.')
+                : 'Store connected. Product scan started.',
             'store' => $store->toApiArray(),
         ], $store->status === 'error' ? 422 : 200);
     }

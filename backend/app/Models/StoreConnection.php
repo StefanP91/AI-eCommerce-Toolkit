@@ -72,6 +72,8 @@ class StoreConnection extends Model
             'status' => $this->status,
             'product_count' => $this->product_count,
             'catalog_product_count' => $this->catalog_product_count,
+            'scan_complete' => $this->catalog_product_count !== null
+                && $this->product_count >= $this->catalog_product_count,
             'avg_seo_score' => $this->avg_seo_score,
             'optimized_count' => $optimizedCount,
             'needs_work_count' => $needsWorkCount,

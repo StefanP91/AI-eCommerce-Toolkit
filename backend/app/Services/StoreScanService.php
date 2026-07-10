@@ -15,6 +15,38 @@ class StoreScanService
         private SeoAuditService $auditService,
     ) {}
 
+    public function discoverCatalog(StoreConnection $store): StoreConnection
+    {
+        $visitorPassword = $store->store_password;
+
+        try {
+            $baseUrl = $this->sitemapService->normalizeBaseUrl($store->store_url);
+            $http = $this->sessionService->create($baseUrl, $visitorPassword);
+            $catalogUrls = $this->sitemapService->discoverProductUrls(
+                $store->store_url,
+                0,
+                $visitorPassword,
+                $http,
+            );
+
+            $store->update([
+                'catalog_product_count' => count($catalogUrls),
+                'product_count' => 0,
+                'avg_seo_score' => null,
+                'status' => 'pending',
+                'error_message' => null,
+            ]);
+        } catch (\Throwable $e) {
+            $store->update([
+                'status' => 'error',
+                'error_message' => $e->getMessage(),
+                'last_scanned_at' => now(),
+            ]);
+        }
+
+        return $store->fresh();
+    }
+
     public function scan(StoreConnection $store, bool $append = false): StoreConnection
     {
         @set_time_limit(600);
@@ -64,10 +96,13 @@ class StoreScanService
         $urls = array_slice($catalogUrls, 0, self::SCAN_BATCH_SIZE);
 
         if ($urls === []) {
+            $scannedCount = $store->products()->count();
+            $scanComplete = $scannedCount >= $catalogProductCount;
+
             $store->update([
-                'status' => 'ready',
+                'status' => $scanComplete ? 'ready' : 'scanning',
                 'catalog_product_count' => $catalogProductCount,
-                'product_count' => $store->products()->count(),
+                'product_count' => $scannedCount,
                 'error_message' => null,
                 'last_scanned_at' => now(),
             ]);
@@ -103,11 +138,13 @@ class StoreScanService
             }
 
             $avgScore = $store->products()->whereNotNull('seo_score')->avg('seo_score');
+            $scannedCount = $store->products()->count();
+            $scanComplete = $scannedCount >= $catalogProductCount;
 
             $store->update([
-                'status' => 'ready',
+                'status' => $scanComplete ? 'ready' : 'scanning',
                 'catalog_product_count' => $catalogProductCount,
-                'product_count' => $store->products()->count(),
+                'product_count' => $scannedCount,
                 'avg_seo_score' => $avgScore !== null ? (int) round($avgScore) : null,
                 'error_message' => null,
                 'last_scanned_at' => now(),
