@@ -1,6 +1,7 @@
 import { Badge, Button, ButtonGroup, Form, InputGroup } from 'react-bootstrap';
 
 export const MAX_BULK_SEO_SELECT = 20;
+export const STORE_PRODUCTS_PER_PAGE = 25;
 
 export const SEO_SORT_OPTIONS = [
   { value: 'default', label: 'Default' },

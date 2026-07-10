@@ -10,6 +10,7 @@ import {
   Row,
   Spinner,
   Table,
+  Pagination,
 } from 'react-bootstrap';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -21,7 +22,7 @@ import { getStorePlatform } from '../constants/storePlatforms';
 import { validateStoreUrlForPlatform } from '../utils/storePlatformUrl';
 import StoreApiSetup from '../components/store/StoreApiSetup';
 import StoreProductAuditFix from '../components/store/StoreProductAuditFix';
-import StoreProductTableToolbar, { MAX_BULK_SEO_SELECT } from '../components/store/StoreProductTableToolbar';
+import StoreProductTableToolbar, { MAX_BULK_SEO_SELECT, STORE_PRODUCTS_PER_PAGE } from '../components/store/StoreProductTableToolbar';
 import StoreBulkSeoProgress from '../components/store/StoreBulkSeoProgress';
 import StoreScanProgress from '../components/store/StoreScanProgress';
 import { runFullStoreScan } from '../utils/runFullStoreScan';
@@ -119,6 +120,7 @@ export default function StoreOverview() {
   const [auditProduct, setAuditProduct] = useState(null);
   const [auditSessionKey, setAuditSessionKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [productPage, setProductPage] = useState(1);
   const [seoSort, setSeoSort] = useState('default');
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkMode, setBulkMode] = useState(null);
@@ -165,15 +167,38 @@ export default function StoreOverview() {
     return matched;
   }, [products, searchQuery, seoSort]);
 
+  const totalProductPages = Math.max(1, Math.ceil(filteredProducts.length / STORE_PRODUCTS_PER_PAGE));
+
+  const paginatedProducts = useMemo(() => {
+    const start = (productPage - 1) * STORE_PRODUCTS_PER_PAGE;
+
+    return filteredProducts.slice(start, start + STORE_PRODUCTS_PER_PAGE);
+  }, [filteredProducts, productPage]);
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [searchQuery, seoSort]);
+
+  useEffect(() => {
+    if (productPage > totalProductPages) {
+      setProductPage(totalProductPages);
+    }
+  }, [productPage, totalProductPages]);
+
   const selectedProducts = useMemo(
     () => products.filter((product) => selectedIds.has(product.id)),
     [products, selectedIds],
   );
 
-  const allVisibleSelected = filteredProducts.length > 0
-    && filteredProducts
+  const allVisibleSelected = paginatedProducts.length > 0
+    && paginatedProducts
       .slice(0, MAX_BULK_SEO_SELECT)
       .every((product) => selectedIds.has(product.id));
+
+  const productPageStart = filteredProducts.length === 0
+    ? 0
+    : (productPage - 1) * STORE_PRODUCTS_PER_PAGE + 1;
+  const productPageEnd = Math.min(productPage * STORE_PRODUCTS_PER_PAGE, filteredProducts.length);
 
   const loadStore = async ({
     store: storeData = null,
@@ -445,11 +470,11 @@ export default function StoreOverview() {
     }
 
     const next = new Set();
-    for (const product of filteredProducts) {
+    for (const product of paginatedProducts) {
       if (next.size >= MAX_BULK_SEO_SELECT) break;
       next.add(product.id);
     }
-    if (filteredProducts.length > MAX_BULK_SEO_SELECT) {
+    if (paginatedProducts.length > MAX_BULK_SEO_SELECT) {
       setSelectionNotice(`Only the first ${MAX_BULK_SEO_SELECT} visible products were selected.`);
     }
     setSelectedIds(next);
@@ -965,7 +990,7 @@ export default function StoreOverview() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredProducts.map((product) => (
+                    {paginatedProducts.map((product) => (
                       <tr key={product.id} className={selectedIds.has(product.id) ? 'table-primary' : undefined}>
                         <td>
                           <Form.Check
@@ -1012,6 +1037,35 @@ export default function StoreOverview() {
                     ))}
                   </tbody>
                 </Table>
+                  )}
+
+                  {filteredProducts.length > STORE_PRODUCTS_PER_PAGE && (
+                    <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-3 border-top">
+                      <small className="text-muted">
+                        Showing {productPageStart}-{productPageEnd} of {filteredProducts.length}
+                      </small>
+                      <Pagination size="sm" className="mb-0">
+                        <Pagination.First
+                          disabled={productPage === 1}
+                          onClick={() => setProductPage(1)}
+                        />
+                        <Pagination.Prev
+                          disabled={productPage === 1}
+                          onClick={() => setProductPage((page) => page - 1)}
+                        />
+                        <Pagination.Item active>
+                          {productPage} / {totalProductPages}
+                        </Pagination.Item>
+                        <Pagination.Next
+                          disabled={productPage >= totalProductPages}
+                          onClick={() => setProductPage((page) => page + 1)}
+                        />
+                        <Pagination.Last
+                          disabled={productPage >= totalProductPages}
+                          onClick={() => setProductPage(totalProductPages)}
+                        />
+                      </Pagination>
+                    </div>
                   )}
                 </>
               )}

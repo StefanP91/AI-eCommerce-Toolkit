@@ -229,7 +229,6 @@ class StoreController extends Controller
 
         $products = $store->products()
             ->orderByDesc('seo_score')
-            ->limit(StoreScanService::SCAN_BATCH_SIZE * 5)
             ->get();
 
         return response()->json(['data' => $products]);
