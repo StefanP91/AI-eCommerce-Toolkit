@@ -128,7 +128,7 @@ export default function StorePlatformConnect({
             </Col>
             <Col xs={12}>
               <Alert variant="info" className="small py-2 mb-0">
-                We read your public sitemap and audit up to 15 product pages. No admin login required for scanning.
+                We read your public sitemap and audit up to 100 product pages per scan. No admin login required for scanning.
               </Alert>
             </Col>
             <Col xs={12} className="d-flex justify-content-end">

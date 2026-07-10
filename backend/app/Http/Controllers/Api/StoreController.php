@@ -109,6 +109,7 @@ class StoreController extends Controller
 
         $validated = $request->validate([
             'visitor_password' => ['nullable', 'string', 'max:255'],
+            'append' => ['sometimes', 'boolean'],
         ]);
 
         if (array_key_exists('visitor_password', $validated)) {
@@ -118,7 +119,7 @@ class StoreController extends Controller
             $store->refresh();
         }
 
-        $store = $this->scanService->scan($store);
+        $store = $this->scanService->scan($store, (bool) ($validated['append'] ?? false));
 
         return response()->json([
             'message' => $store->status === 'ready'
@@ -227,9 +228,10 @@ class StoreController extends Controller
 
         $products = $store->products()
             ->orderByDesc('seo_score')
-            ->paginate(20);
+            ->limit(StoreScanService::SCAN_BATCH_SIZE * 5)
+            ->get();
 
-        return response()->json($products);
+        return response()->json(['data' => $products]);
     }
 
     public function destroy(Request $request): JsonResponse

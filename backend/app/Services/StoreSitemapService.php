@@ -116,7 +116,11 @@ class StoreSitemapService
                 throw new \RuntimeException('Sitemap found, but no product URLs were detected. Make sure the store has published products.');
             }
 
-            return array_slice($productUrls, 0, $limit);
+            if ($limit !== null && $limit > 0) {
+                return array_slice($productUrls, 0, $limit);
+            }
+
+            return $productUrls;
         } finally {
             if ($ownsSession) {
                 $this->http = null;

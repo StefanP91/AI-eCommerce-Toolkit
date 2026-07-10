@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class StoreScanService
 {
-    private const SCAN_LIMIT = 15;
+    public const SCAN_BATCH_SIZE = 100;
 
     public function __construct(
         private StoreSitemapService $sitemapService,
@@ -15,8 +15,10 @@ class StoreScanService
         private SeoAuditService $auditService,
     ) {}
 
-    public function scan(StoreConnection $store): StoreConnection
+    public function scan(StoreConnection $store, bool $append = false): StoreConnection
     {
+        @set_time_limit(600);
+
         $store->update([
             'status' => 'scanning',
             'error_message' => null,
@@ -27,9 +29,9 @@ class StoreScanService
         try {
             $baseUrl = $this->sitemapService->normalizeBaseUrl($store->store_url);
             $http = $this->sessionService->create($baseUrl, $visitorPassword);
-            $urls = $this->sitemapService->discoverProductUrls(
+            $catalogUrls = $this->sitemapService->discoverProductUrls(
                 $store->store_url,
-                self::SCAN_LIMIT,
+                0,
                 $visitorPassword,
                 $http,
             );
@@ -43,11 +45,37 @@ class StoreScanService
             return $store->fresh();
         }
 
-        DB::transaction(function () use ($store, $urls, $http): void {
+        $catalogProductCount = count($catalogUrls);
+
+        if ($append) {
+            $existing = $store->products()
+                ->pluck('url')
+                ->map(fn (string $url) => $this->sitemapService->normalizeProductUrl($url))
+                ->all();
+
+            $catalogUrls = array_values(array_filter(
+                $catalogUrls,
+                fn (string $url) => ! in_array($this->sitemapService->normalizeProductUrl($url), $existing, true),
+            ));
+        } else {
             $store->products()->delete();
+        }
 
-            $scores = [];
+        $urls = array_slice($catalogUrls, 0, self::SCAN_BATCH_SIZE);
 
+        if ($urls === []) {
+            $store->update([
+                'status' => 'ready',
+                'catalog_product_count' => $catalogProductCount,
+                'product_count' => $store->products()->count(),
+                'error_message' => null,
+                'last_scanned_at' => now(),
+            ]);
+
+            return $store->fresh(['products']);
+        }
+
+        DB::transaction(function () use ($store, $urls, $http, $catalogProductCount): void {
             foreach ($urls as $url) {
                 $product = $store->products()->create([
                     'url' => $url,
@@ -56,12 +84,9 @@ class StoreScanService
 
                 try {
                     $audit = $this->auditService->auditUrl($url, $http, bustCache: true);
-                    $score = $audit['score'];
-                    $scores[] = $score;
-
                     $product->update([
                         'product_name' => $audit['extracted']['product_name'] ?? $this->nameFromUrl($url),
-                        'seo_score' => $score,
+                        'seo_score' => $audit['score'],
                         'seo_checks' => $audit['checks'],
                         'status' => 'scanned',
                         'error_message' => null,
@@ -77,10 +102,13 @@ class StoreScanService
                 }
             }
 
+            $avgScore = $store->products()->whereNotNull('seo_score')->avg('seo_score');
+
             $store->update([
                 'status' => 'ready',
-                'product_count' => count($urls),
-                'avg_seo_score' => $scores !== [] ? (int) round(array_sum($scores) / count($scores)) : null,
+                'catalog_product_count' => $catalogProductCount,
+                'product_count' => $store->products()->count(),
+                'avg_seo_score' => $avgScore !== null ? (int) round($avgScore) : null,
                 'error_message' => null,
                 'last_scanned_at' => now(),
             ]);
@@ -192,6 +220,7 @@ class StoreScanService
 
         $store->update([
             'avg_seo_score' => $avgScore !== null ? (int) round($avgScore) : null,
+            'product_count' => $store->products()->count(),
             'last_scanned_at' => now(),
         ]);
     }

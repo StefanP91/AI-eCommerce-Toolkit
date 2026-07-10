@@ -109,6 +109,7 @@ export default function StoreOverview() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [scanningMore, setScanningMore] = useState(false);
   const [error, setError] = useState('');
   const [oauthMessage, setOauthMessage] = useState('');
   const [auditProduct, setAuditProduct] = useState(null);
@@ -144,6 +145,13 @@ export default function StoreOverview() {
   };
 
   const isPro = plan === 'pro';
+
+  const hasMoreProducts = Boolean(
+    store?.catalog_product_count && store.catalog_product_count > (store.product_count ?? 0),
+  );
+  const remainingProducts = hasMoreProducts
+    ? store.catalog_product_count - store.product_count
+    : 0;
 
   const filteredProducts = useMemo(() => {
     const matched = products.filter((product) => matchesProductSearch(product, searchQuery));
@@ -271,7 +279,7 @@ export default function StoreOverview() {
       if (visitorPassword.trim()) {
         payload.visitor_password = visitorPassword;
       }
-      const res = await api.post('/store', payload);
+      const res = await api.post('/store', payload, { timeout: 600000 });
       setStore(res.data.store);
       await loadStore();
     } catch (err) {
@@ -292,7 +300,7 @@ export default function StoreOverview() {
       if (visitorPassword.trim()) {
         payload.visitor_password = visitorPassword;
       }
-      const res = await api.post('/store/scan', payload);
+      const res = await api.post('/store/scan', payload, { timeout: 600000 });
       setStore(res.data.store);
       await loadStore();
     } catch (err) {
@@ -302,6 +310,23 @@ export default function StoreOverview() {
       }
     } finally {
       setScanning(false);
+    }
+  };
+
+  const handleScanMore = async () => {
+    setError('');
+    setScanningMore(true);
+    try {
+      const res = await api.post('/store/scan', { append: true }, { timeout: 600000 });
+      setStore(res.data.store);
+      await loadStore();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not scan more products.');
+      if (err.response?.data?.store) {
+        setStore(err.response.data.store);
+      }
+    } finally {
+      setScanningMore(false);
     }
   };
 
@@ -623,10 +648,17 @@ export default function StoreOverview() {
           </p>
         </div>
         {store && (
-          <div className="d-flex gap-2">
-            <Button variant="outline-primary" size="sm" onClick={handleRescan} disabled={scanning}>
+          <div className="d-flex gap-2 flex-wrap">
+            <Button variant="outline-primary" size="sm" onClick={handleRescan} disabled={scanning || scanningMore}>
               {scanning ? 'Scanning...' : 'Rescan Store'}
             </Button>
+            {hasMoreProducts && (
+              <Button variant="primary" size="sm" onClick={handleScanMore} disabled={scanning || scanningMore}>
+                {scanningMore
+                  ? 'Scanning more...'
+                  : `Scan more (${Math.min(remainingProducts, 100)})`}
+              </Button>
+            )}
             <Button variant="outline-danger" size="sm" onClick={handleDisconnect}>
               Disconnect
             </Button>
@@ -697,7 +729,7 @@ export default function StoreOverview() {
                     />
                   </Col>
                   <Col md="auto">
-                    <Button variant="outline-primary" onClick={handleRescan} disabled={scanning}>
+                    <Button variant="outline-primary" onClick={handleRescan} disabled={scanning || scanningMore}>
                       {scanning ? 'Scanning...' : 'Save & Rescan'}
                     </Button>
                   </Col>
@@ -731,6 +763,11 @@ export default function StoreOverview() {
                 <Card.Body>
                   <small className="text-muted">Products Scanned</small>
                   <h2 className="mb-0">{store.product_count}</h2>
+                  {store.catalog_product_count > store.product_count && (
+                    <small className="text-muted">
+                      of {store.catalog_product_count} in catalog
+                    </small>
+                  )}
                 </Card.Body>
               </Card>
             </Col>
