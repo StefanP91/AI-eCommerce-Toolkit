@@ -68,15 +68,27 @@ class StoreSitemapService
             $sitemapUrls = $this->findSitemaps($base);
 
             if ($sitemapUrls === []) {
-                throw new \RuntimeException('No sitemap found. Make sure your store has /sitemap.xml enabled and is publicly accessible.');
+                throw new \RuntimeException(
+                    'No sitemap found. We checked /sitemap.xml and BigCommerce /xmlsitemap.php. Make sure your storefront sitemap is publicly accessible.'
+                );
             }
 
             $allUrls = [];
+            $bigCommerceProductUrls = [];
             foreach ($sitemapUrls as $sitemapUrl) {
                 $allUrls = array_merge($allUrls, $this->parseSitemap($sitemapUrl));
+                $bigCommerceProductUrls = array_merge(
+                    $bigCommerceProductUrls,
+                    $this->extractBigCommerceProductUrls($sitemapUrl),
+                );
             }
 
             $productUrls = $this->filterProductUrls(array_values(array_unique($allUrls)), $base);
+            $bigCommerceProductUrls = $this->filterBigCommerceProductUrls(
+                array_values(array_unique($bigCommerceProductUrls)),
+                $base,
+            );
+            $productUrls = array_values(array_unique(array_merge($productUrls, $bigCommerceProductUrls)));
 
             if ($productUrls === []) {
                 if ($this->sessionService->isPasswordProtectedHtml($this->fetchText($base))) {
@@ -140,6 +152,7 @@ class StoreSitemapService
             $baseUrl.'/sitemap-index.xml',
             $baseUrl.'/wp-sitemap.xml',
             $baseUrl.'/sitemap/sitemap.xml',
+            $baseUrl.'/xmlsitemap.php',
         ];
 
         $found = [];
@@ -195,6 +208,79 @@ class StoreSitemapService
         }
 
         return $urls;
+    }
+
+    private function extractBigCommerceProductUrls(string $url, int $depth = 0): array
+    {
+        if ($depth > 3) {
+            return [];
+        }
+
+        $xml = $this->fetchText($url);
+        if (! $this->isSitemapXml($xml)) {
+            return [];
+        }
+
+        $urls = [];
+        $isProductFeed = $this->isBigCommerceProductSitemapUrl($url);
+
+        if (preg_match_all('#<loc>(.*?)</loc>#is', $xml, $matches)) {
+            foreach ($matches[1] as $loc) {
+                $loc = html_entity_decode(trim($loc), ENT_QUOTES | ENT_XML1, 'UTF-8');
+                if ($loc === '') {
+                    continue;
+                }
+
+                if ($this->looksLikeSitemapIndexEntry($loc, $xml)) {
+                    $urls = array_merge($urls, $this->extractBigCommerceProductUrls($loc, $depth + 1));
+                    continue;
+                }
+
+                if ($isProductFeed) {
+                    $urls[] = $loc;
+                }
+            }
+        }
+
+        return $urls;
+    }
+
+    private function isBigCommerceProductSitemapUrl(string $url): bool
+    {
+        return (bool) preg_match('/[?&]type=products(?:&|$)/i', $url);
+    }
+
+    private function filterBigCommerceProductUrls(array $urls, string $baseUrl): array
+    {
+        $host = parse_url($baseUrl, PHP_URL_HOST);
+
+        return collect($urls)
+            ->filter(function (string $url) use ($host) {
+                $urlHost = parse_url($url, PHP_URL_HOST);
+                if ($urlHost && strcasecmp($urlHost, (string) $host) !== 0) {
+                    return false;
+                }
+
+                $path = parse_url($url, PHP_URL_PATH) ?? '';
+                if ($path === '' || $path === '/') {
+                    return false;
+                }
+
+                if (str_ends_with(strtolower($path), '.php')) {
+                    return false;
+                }
+
+                foreach (self::EXCLUDED_PATH_PATTERNS as $pattern) {
+                    if (preg_match($pattern, $path)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function looksLikeSitemapIndexEntry(string $loc, string $parentXml): bool
