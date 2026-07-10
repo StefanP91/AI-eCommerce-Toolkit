@@ -44,6 +44,7 @@ class StoreController extends Controller
         $validated = $request->validate([
             'store_url' => ['required', 'string', 'max:500'],
             'visitor_password' => ['nullable', 'string', 'max:255'],
+            'platform' => ['nullable', 'string', 'in:shopify,woocommerce,wix,bigcommerce,magento,squarespace,prestashop,opencart,square'],
         ]);
 
         try {
@@ -62,6 +63,10 @@ class StoreController extends Controller
 
         if (array_key_exists('visitor_password', $validated)) {
             $attributes['store_password'] = $validated['visitor_password'] ?: null;
+        }
+
+        if (! empty($validated['platform'])) {
+            $attributes['platform'] = $validated['platform'];
         }
 
         $store = StoreConnection::updateOrCreate(

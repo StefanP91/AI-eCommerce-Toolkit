@@ -7,18 +7,22 @@ import {
   Card,
   Col,
   Form,
-  InputGroup,
   Row,
   Spinner,
   Table,
 } from 'react-bootstrap';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import PublishToStorePanel from '../components/store/PublishToStorePanel';
+import StorePlatformPicker from '../components/store/StorePlatformPicker';
+import StorePlatformConnect from '../components/store/StorePlatformConnect';
+import VisitorPasswordInput from '../components/store/VisitorPasswordInput';
+import StorePlatformLogo from '../components/store/StorePlatformLogo';
+import { getStorePlatform } from '../constants/storePlatforms';
 import StoreApiSetup from '../components/store/StoreApiSetup';
 import StoreProductAuditFix from '../components/store/StoreProductAuditFix';
 import StoreProductTableToolbar, { MAX_BULK_SEO_SELECT } from '../components/store/StoreProductTableToolbar';
 import StoreBulkSeoProgress from '../components/store/StoreBulkSeoProgress';
+import PublishToStorePanel from '../components/store/PublishToStorePanel';
 import { notifyCreditsUpdated } from '../utils/credits';
 
 const GENERATE_DEFAULTS = {
@@ -91,61 +95,6 @@ function scoreBadge(score) {
   return 'danger';
 }
 
-function EyeIcon({ slashed = false }) {
-  if (slashed) {
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M3 3l18 18M10.58 10.58A2 2 0 0 0 12 15a2 2 0 0 0 1.42-.58M9.88 4.24A10.94 10.94 0 0 1 12 4c5 0 9.27 3.11 11 8-1.02 2.79-2.97 5.08-5.45 6.45M6.61 6.61C4.55 7.88 2.97 9.79 2 12c1.73 4.89 6 8 10 8 1.55 0 3.03-.35 4.36-.97"
-          stroke="currentColor"
-          strokeWidth="1.75"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  }
-
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.75" />
-    </svg>
-  );
-}
-
-function VisitorPasswordInput({ value, onChange, placeholder, id }) {
-  const [visible, setVisible] = useState(false);
-
-  return (
-    <InputGroup>
-      <Form.Control
-        id={id}
-        type={visible ? 'text' : 'password'}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        autoComplete="off"
-      />
-      <Button
-        variant="outline-secondary"
-        type="button"
-        onClick={() => setVisible((current) => !current)}
-        aria-label={visible ? 'Hide password' : 'Show password'}
-        title={visible ? 'Hide password' : 'Show password'}
-      >
-        <EyeIcon slashed={visible} />
-      </Button>
-    </InputGroup>
-  );
-}
-
 export default function StoreOverview() {
   const { user, refreshUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -153,6 +102,7 @@ export default function StoreOverview() {
   const [products, setProducts] = useState([]);
   const [storeUrl, setStoreUrl] = useState('');
   const [visitorPassword, setVisitorPassword] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState(null);
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -300,6 +250,9 @@ export default function StoreOverview() {
     setSubmitting(true);
     try {
       const payload = { store_url: storeUrl };
+      if (selectedPlatform) {
+        payload.platform = selectedPlatform;
+      }
       if (visitorPassword.trim()) {
         payload.visitor_password = visitorPassword;
       }
@@ -346,6 +299,7 @@ export default function StoreOverview() {
       setProducts([]);
       setStoreUrl('');
       setVisitorPassword('');
+      setSelectedPlatform(null);
       setSelectedIds(new Set());
       setSearchQuery('');
       setSeoSort('default');
@@ -670,59 +624,20 @@ export default function StoreOverview() {
 
       {!store ? (
         isPro ? (
-        <Card className="border-0 shadow-sm">
-          <Card.Body className="p-4">
-            <h5 className="mb-3">Connect your store</h5>
-            <p className="text-muted">
-              Enter your store homepage URL. We read your public sitemap and audit up to 15 product pages.
-              Works with Shopify, WooCommerce, and most stores with a standard sitemap.
-            </p>
-            <Form onSubmit={handleConnect} className="mt-3">
-              <Row className="g-3">
-                <Col md={8}>
-                  <Form.Group>
-                    <Form.Label>Store URL</Form.Label>
-                    <Form.Control
-                      type="url"
-                      value={storeUrl}
-                      onChange={(e) => setStoreUrl(e.target.value)}
-                      placeholder="https://yourstore.com"
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={4}>
-                  <Form.Group>
-                    <Form.Label>
-                      Visitor password <span className="text-muted fw-normal">(optional)</span>
-                    </Form.Label>
-                    <VisitorPasswordInput
-                      id="connect-visitor-password"
-                      value={visitorPassword}
-                      onChange={(e) => setVisitorPassword(e.target.value)}
-                      placeholder="Development store password"
-                    />
-                    <Form.Text className="text-muted">
-                      If your store uses a visitor password, enter it here.
-                    </Form.Text>
-                  </Form.Group>
-                </Col>
-                <Col xs={12} className="d-flex justify-content-end">
-                  <Button type="submit" variant="primary" disabled={submitting}>
-                    {submitting ? (
-                      <>
-                        <Spinner animation="border" size="sm" className="me-2" />
-                        Connecting...
-                      </>
-                    ) : (
-                      'Connect Store'
-                    )}
-                  </Button>
-                </Col>
-              </Row>
-            </Form>
-          </Card.Body>
-        </Card>
+          !selectedPlatform ? (
+            <StorePlatformPicker onSelect={setSelectedPlatform} />
+          ) : (
+            <StorePlatformConnect
+              platformId={selectedPlatform}
+              storeUrl={storeUrl}
+              onStoreUrlChange={setStoreUrl}
+              visitorPassword={visitorPassword}
+              onVisitorPasswordChange={setVisitorPassword}
+              submitting={submitting}
+              onSubmit={handleConnect}
+              onBack={() => setSelectedPlatform(null)}
+            />
+          )
         ) : (
         <Card className="border-0 shadow-sm">
           <Card.Body className="p-4 text-center">
@@ -774,6 +689,14 @@ export default function StoreOverview() {
               <Card className="border-0 shadow-sm h-100">
                 <Card.Body>
                   <small className="text-muted">Store</small>
+                  {store.platform && (
+                    <div className="d-flex align-items-center gap-2 mb-1">
+                      <StorePlatformLogo platformId={store.platform} size={20} />
+                      <span className="small fw-semibold">
+                        {getStorePlatform(store.platform)?.label ?? store.platform}
+                      </span>
+                    </div>
+                  )}
                   <div className="fw-semibold text-truncate">{store.store_url}</div>
                   <a href={store.store_url} target="_blank" rel="noreferrer" className="small">
                     Visit store →

@@ -7,12 +7,13 @@ import {
   Col,
   Form,
   InputGroup,
-  Nav,
   Row,
   Spinner,
 } from 'react-bootstrap';
 import api from '../../api/client';
 import { STORE_API_GUIDES } from '../../constants/storePublish';
+import { getStorePlatform } from '../../constants/storePlatforms';
+import StorePlatformLogo from './StorePlatformLogo';
 import ShopifyConnectButton from './ShopifyConnectButton';
 
 function EyeIcon({ slashed = false }) {
@@ -73,7 +74,7 @@ function SecretInput({ name, label, value, onChange, placeholder }) {
 }
 
 export default function StoreApiSetup({ store, onUpdated }) {
-  const [platform, setPlatform] = useState(store?.platform || 'shopify');
+  const storePlatform = store?.platform || 'shopify';
   const [form, setForm] = useState({
     admin_access_token: '',
     consumer_key: '',
@@ -84,7 +85,9 @@ export default function StoreApiSetup({ store, onUpdated }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const guide = STORE_API_GUIDES[platform];
+  const guide = STORE_API_GUIDES[storePlatform];
+  const connectedPlatform = getStorePlatform(storePlatform);
+  const hasApiGuide = Boolean(STORE_API_GUIDES[storePlatform]);
 
   const handleChange = (e) => {
     setForm((current) => ({ ...current, [e.target.name]: e.target.value }));
@@ -98,7 +101,7 @@ export default function StoreApiSetup({ store, onUpdated }) {
 
     try {
       const res = await api.post('/store/api', {
-        platform,
+        platform: storePlatform,
         ...form,
       });
       setMessage(res.data.message);
@@ -136,12 +139,19 @@ export default function StoreApiSetup({ store, onUpdated }) {
       <Card.Body className="p-4">
         <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
           <div>
-            <h5 className="mb-1">Guided API setup</h5>
+            <h5 className="mb-1">Guided setup</h5>
             <p className="text-muted small mb-0">
-              Level 2 — follow the steps below to prepare one-click publishing later.
+              {connectedPlatform
+                ? `Connect ${connectedPlatform.label} for publishing and one-click workflows where available.`
+                : 'Level 2 — follow the steps below to prepare one-click publishing later.'}
             </p>
           </div>
-          <Badge bg="warning" text="dark">Level 2</Badge>
+          {connectedPlatform && (
+            <div className="d-flex align-items-center gap-2">
+              <StorePlatformLogo platformId={connectedPlatform.id} size={28} />
+              <Badge bg="light" text="dark">{connectedPlatform.label}</Badge>
+            </div>
+          )}
         </div>
 
         {error && <Alert variant="danger">{error}</Alert>}
@@ -167,22 +177,8 @@ export default function StoreApiSetup({ store, onUpdated }) {
               {disconnecting ? 'Removing...' : 'Remove API connection'}
             </Button>
           </Alert>
-        ) : (
+        ) : hasApiGuide && guide ? (
           <>
-            <Nav variant="pills" className="mb-3 gap-2">
-              {Object.values(STORE_API_GUIDES).map((item) => (
-                <Nav.Item key={item.id}>
-                  <Nav.Link
-                    active={platform === item.id}
-                    onClick={() => setPlatform(item.id)}
-                    className="px-3"
-                  >
-                    {item.label}
-                  </Nav.Link>
-                </Nav.Item>
-              ))}
-            </Nav>
-
             <Row className="g-4">
               <Col lg={7}>
                 <Card className="border h-100">
@@ -232,8 +228,27 @@ export default function StoreApiSetup({ store, onUpdated }) {
               </Col>
             </Row>
           </>
-        )}
+        ) : connectedPlatform ? (
+          <Card className="border">
+            <Card.Body>
+              <h6 className="mb-2">Publish to {connectedPlatform.label}</h6>
+              <p className="text-muted small">
+                One-click API push is not available for {connectedPlatform.label} yet.
+                Scan and optimize here, then update products in your store admin.
+              </p>
+              <ol className="small ps-3 mb-3">
+                {connectedPlatform.publishSteps.map((step) => (
+                  <li key={step} className="mb-2">{step}</li>
+                ))}
+              </ol>
+              <a href={connectedPlatform.docsUrl} target="_blank" rel="noreferrer" className="small">
+                Open {connectedPlatform.label} documentation →
+              </a>
+            </Card.Body>
+          </Card>
+        ) : null}
 
+        {storePlatform === 'shopify' && (
         <Card className="border bg-light mt-4">
           <Card.Body className="py-3">
             <div className="d-flex flex-wrap justify-content-between align-items-start gap-3">
@@ -260,6 +275,7 @@ export default function StoreApiSetup({ store, onUpdated }) {
             </div>
           </Card.Body>
         </Card>
+        )}
       </Card.Body>
     </Card>
   );
