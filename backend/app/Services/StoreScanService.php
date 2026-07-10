@@ -3,11 +3,12 @@
 namespace App\Services;
 
 use App\Models\StoreConnection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 class StoreScanService
 {
-    public const SCAN_BATCH_SIZE = 100;
+    public const SCAN_BATCH_SIZE = 50;
 
     public function __construct(
         private StoreSitemapService $sitemapService,
@@ -20,16 +21,10 @@ class StoreScanService
         $visitorPassword = $store->store_password;
 
         try {
-            $baseUrl = $this->sitemapService->normalizeBaseUrl($store->store_url);
-            $http = $this->sessionService->create($baseUrl, $visitorPassword);
-            $catalogUrls = $this->sitemapService->discoverProductUrls(
-                $store->store_url,
-                0,
-                $visitorPassword,
-                $http,
-            );
+            $catalogUrls = $this->fetchCatalogUrls($store->store_url, $visitorPassword);
 
             $store->update([
+                'catalog_urls' => $catalogUrls,
                 'catalog_product_count' => count($catalogUrls),
                 'product_count' => 0,
                 'avg_seo_score' => null,
@@ -59,14 +54,7 @@ class StoreScanService
         $visitorPassword = $store->store_password;
 
         try {
-            $baseUrl = $this->sitemapService->normalizeBaseUrl($store->store_url);
-            $http = $this->sessionService->create($baseUrl, $visitorPassword);
-            $catalogUrls = $this->sitemapService->discoverProductUrls(
-                $store->store_url,
-                0,
-                $visitorPassword,
-                $http,
-            );
+            $catalogUrls = $this->resolveCatalogUrls($store, $append, $visitorPassword);
         } catch (\Throwable $e) {
             $store->update([
                 'status' => 'error',
@@ -110,12 +98,19 @@ class StoreScanService
             return $store->fresh(['products']);
         }
 
+        $baseUrl = $this->sitemapService->normalizeBaseUrl($store->store_url);
+        $http = $this->sessionService->create($baseUrl, $visitorPassword);
+
         DB::transaction(function () use ($store, $urls, $http, $catalogProductCount): void {
             foreach ($urls as $url) {
-                $product = $store->products()->create([
-                    'url' => $url,
-                    'status' => 'scanning',
-                ]);
+                try {
+                    $product = $store->products()->create([
+                        'url' => $url,
+                        'status' => 'scanning',
+                    ]);
+                } catch (UniqueConstraintViolationException) {
+                    continue;
+                }
 
                 try {
                     $audit = $this->auditService->auditUrl($url, $http, bustCache: true);
@@ -152,6 +147,43 @@ class StoreScanService
         });
 
         return $store->fresh(['products']);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveCatalogUrls(StoreConnection $store, bool $append, ?string $visitorPassword): array
+    {
+        $cached = $store->catalog_urls;
+
+        if ($append && is_array($cached) && $cached !== []) {
+            return array_values($cached);
+        }
+
+        $catalogUrls = $this->fetchCatalogUrls($store->store_url, $visitorPassword);
+
+        $store->update([
+            'catalog_urls' => $catalogUrls,
+            'catalog_product_count' => count($catalogUrls),
+        ]);
+
+        return $catalogUrls;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fetchCatalogUrls(string $storeUrl, ?string $visitorPassword): array
+    {
+        $baseUrl = $this->sitemapService->normalizeBaseUrl($storeUrl);
+        $http = $this->sessionService->create($baseUrl, $visitorPassword);
+
+        return $this->sitemapService->discoverProductUrls(
+            $storeUrl,
+            0,
+            $visitorPassword,
+            $http,
+        );
     }
 
     public function rescanProductUrl(StoreConnection $store, string $url, int $attempts = 5): ?\App\Models\StoreProduct

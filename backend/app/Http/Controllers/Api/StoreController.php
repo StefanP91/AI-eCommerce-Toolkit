@@ -122,10 +122,15 @@ class StoreController extends Controller
 
         $store = $this->scanService->scan($store, (bool) ($validated['append'] ?? false));
 
+        $message = match ($store->status) {
+            'ready' => 'Store scan completed.',
+            'scanning' => 'Scan batch completed. Continuing with remaining products.',
+            'error' => $store->error_message ?? 'Store scan failed.',
+            default => 'Store scan updated.',
+        };
+
         return response()->json([
-            'message' => $store->status === 'ready'
-                ? 'Store scan completed.'
-                : ($store->error_message ?? 'Store scan failed.'),
+            'message' => $message,
             'store' => $store->toApiArray(),
         ], $store->status === 'error' ? 422 : 200);
     }

@@ -284,6 +284,7 @@ export default function StoreOverview() {
 
     scanInProgressRef.current = true;
     setScanning(true);
+    setError('');
     setScanProgress({
       active: true,
       phase: resume ? 'scanning' : 'starting',
@@ -310,7 +311,7 @@ export default function StoreOverview() {
 
           if (progress.store) {
             setStore(progress.store);
-            await loadStore({ store: progress.store });
+            await loadStore({ store: progress.store, skipProductsRefetch: true });
           }
         },
       });
@@ -328,12 +329,28 @@ export default function StoreOverview() {
 
       return updatedStore;
     } catch (err) {
-      setError(err.response?.data?.message || 'Store scan failed.');
+      const updatedStore = err.response?.data?.store ?? store;
+      const partialProgress = (updatedStore?.product_count ?? 0) > 0
+        && (updatedStore?.catalog_product_count ?? 0) > (updatedStore?.product_count ?? 0);
+
+      setError(
+        partialProgress
+          ? `${err.response?.data?.message || 'Scan interrupted.'} Progress saved — resuming automatically.`
+          : (err.response?.data?.message || 'Store scan failed.'),
+      );
+
       if (err.response?.data?.store) {
         setStore(err.response.data.store);
         await loadStore({ store: err.response.data.store });
+      } else if (partialProgress) {
+        await loadStore();
       }
-      setScanProgress(null);
+
+      if (partialProgress) {
+        resumeAttemptedRef.current = false;
+      } else {
+        setScanProgress(null);
+      }
       return null;
     } finally {
       scanInProgressRef.current = false;
@@ -343,7 +360,7 @@ export default function StoreOverview() {
 
   useEffect(() => {
     resumeAttemptedRef.current = false;
-  }, [store?.id]);
+  }, [store?.id, store?.status]);
 
   useEffect(() => {
     if (scanProgress?.phase !== 'complete') {
@@ -367,6 +384,7 @@ export default function StoreOverview() {
       && store.status !== 'error';
 
     if (!incomplete) {
+      resumeAttemptedRef.current = false;
       return;
     }
 
@@ -375,6 +393,7 @@ export default function StoreOverview() {
     }
 
     resumeAttemptedRef.current = true;
+    setError('');
     void runStoreScan({ resume: (store.product_count ?? 0) > 0 });
   }, [loading, store?.id, store?.product_count, store?.catalog_product_count, store?.status]);
 

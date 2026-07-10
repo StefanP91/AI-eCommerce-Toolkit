@@ -18,6 +18,7 @@ class StoreConnection extends Model
         'status',
         'product_count',
         'catalog_product_count',
+        'catalog_urls',
         'avg_seo_score',
         'last_scanned_at',
         'error_message',
@@ -35,6 +36,7 @@ class StoreConnection extends Model
             'api_connected_at' => 'datetime',
             'store_password' => 'encrypted',
             'api_credentials' => 'encrypted:array',
+            'catalog_urls' => 'array',
         ];
     }
 

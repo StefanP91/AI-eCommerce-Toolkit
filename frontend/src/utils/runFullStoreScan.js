@@ -1,3 +1,22 @@
+const MAX_BATCH_RETRIES = 3;
+const BATCH_RETRY_DELAY_MS = 4000;
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function isRetryableScanError(err) {
+  if (!err.response) {
+    return true;
+  }
+
+  const status = err.response.status;
+
+  return status === 408 || status === 429 || status === 502 || status === 503 || status === 504;
+}
+
 export function formatScanEta(etaMs) {
   if (etaMs === null || etaMs === undefined || !Number.isFinite(etaMs) || etaMs < 0) {
     return 'Calculating ETA...';
@@ -46,12 +65,28 @@ export async function runFullStoreScan({
     : {};
 
   const requestBatch = async (append) => {
-    const response = await api.post('/store/scan', {
-      ...passwordPayload,
-      append,
-    }, { timeout: 600000 });
+    let lastError = null;
 
-    return response.data.store;
+    for (let attempt = 1; attempt <= MAX_BATCH_RETRIES; attempt += 1) {
+      try {
+        const response = await api.post('/store/scan', {
+          ...passwordPayload,
+          append,
+        }, { timeout: 600000 });
+
+        return response.data.store;
+      } catch (err) {
+        lastError = err;
+
+        if (!isRetryableScanError(err) || attempt === MAX_BATCH_RETRIES) {
+          throw err;
+        }
+
+        await sleep(BATCH_RETRY_DELAY_MS * attempt);
+      }
+    }
+
+    throw lastError;
   };
 
   const startedAt = Date.now();
