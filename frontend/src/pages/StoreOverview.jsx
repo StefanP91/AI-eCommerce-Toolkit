@@ -934,7 +934,7 @@ export default function StoreOverview() {
                   currentLabel={bulkItems[bulkIndex]?.product_name || bulkItems[bulkIndex]?.url || ''}
                   error={bulkError}
                   onDismiss={dismissBulkProgress}
-                  canPush={Boolean(store?.push_available)}
+                  store={store}
                   pushableCount={bulkPushableCount}
                   onPush={() => handleBulkPush(bulkItems)}
                   pushRunning={bulkMode === 'push'}

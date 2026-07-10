@@ -129,19 +129,19 @@ export default function PublishToStorePanel({
               <Card.Body>
                 <div className="d-flex align-items-center gap-2 mb-2">
                   <Badge bg="warning" text="dark">Level 2</Badge>
-                  <strong>Push to store</strong>
+                  <strong>{store?.push_available ? 'Push to store' : 'Connect store'}</strong>
                 </div>
-                <p className="text-muted small">
-                  Publish directly to your connected Shopify store with one click.
-                </p>
-                {store?.has_api_connection ? (
+                {store?.push_available ? (
                   <>
+                    <p className="text-muted small">
+                      Publish directly to your connected Shopify store with one click.
+                    </p>
                     <Alert variant="success" className="small py-2 mb-3">
                       API connected for <strong>{store.platform}</strong>
                       {store.connection_method === 'oauth' ? ' via OAuth' : ''}.
-                      {store.push_available && productId && ' Ready to push.'}
+                      {productId && ' Ready to push.'}
                     </Alert>
-                    {store.push_available && productId && (
+                    {productId && (
                       <div className="mb-3">
                         <Button variant="primary" size="sm" onClick={handlePush} disabled={pushing}>
                           {pushing ? 'Pushing & rescanning...' : 'Push to Shopify'}
@@ -162,22 +162,27 @@ export default function PublishToStorePanel({
                         )}
                       </div>
                     )}
-                    {store.push_available && !productId && (
-                      <Alert variant="light" className="small mb-3 py-2">
+                    {!productId && (
+                      <Alert variant="light" className="small mb-0 py-2">
                         Save the project first to push to Shopify.
                       </Alert>
                     )}
                   </>
                 ) : (
-                  <p className="small text-muted mb-3">
-                    Connect your store URL first, then follow the guided setup on Store Overview.
-                  </p>
+                  <>
+                    <p className="text-muted small">
+                      Connect your Shopify admin API or sign in with OAuth to enable one-click push.
+                    </p>
+                    <p className="small text-muted mb-3">
+                      Until then, use copy or export above and paste into Shopify admin.
+                    </p>
+                    <Link to="/store#guided-api-setup">
+                      <Button variant="primary" size="sm">
+                        Connect store
+                      </Button>
+                    </Link>
+                  </>
                 )}
-                <Link to="/store#guided-api-setup">
-                  <Button variant="outline-primary" size="sm">
-                    Open guided setup
-                  </Button>
-                </Link>
               </Card.Body>
             </Card>
           </Col>

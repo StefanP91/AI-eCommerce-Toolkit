@@ -222,7 +222,7 @@ export default function StoreProductAuditFix({
                 <div>
                   <h6 className="mb-1">Fix SEO issues with AI</h6>
                   <p className="text-muted small mb-0">
-                    Generate optimized content and push directly to your store.
+                    Generate optimized content and publish to your store when ready.
                   </p>
                 </div>
                 <Button variant="primary" onClick={handleFix}>
@@ -253,7 +253,11 @@ export default function StoreProductAuditFix({
           <>
             {!livePageAudit && (
               <Alert variant="info" className="py-2">
-                Content is ready. Push to Shopify to update your live page score below.
+                {store?.push_available
+                  ? 'Content is ready. Push to Shopify to update your live page score below.'
+                  : store?.platform === 'shopify'
+                    ? 'Content is ready. Connect your store below to push, or copy/export and update Shopify manually.'
+                    : 'Content is ready. Use copy, export, or the publish guide below to update your store.'}
               </Alert>
             )}
 
