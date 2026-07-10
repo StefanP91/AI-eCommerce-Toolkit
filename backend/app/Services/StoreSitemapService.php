@@ -13,7 +13,10 @@ class StoreSitemapService
     private const PRODUCT_PATH_PATTERNS = [
         '#/products?/#i',
         '#/product/#i',
+        '#/product-page/#i',
+        '#/shop/p/#i',
         '#/shop/#i',
+        '#/store/#i',
         '#/item/#i',
         '#/p/#i',
         '#/catalog/product/#i',
@@ -40,6 +43,19 @@ class StoreSitemapService
         '#/wp-admin#i',
         '#/feed#i',
         '#/cdn-cgi#i',
+    ];
+
+    private const PRODUCT_SITEMAP_URL_PATTERNS = [
+        '/[?&]type=products(?:&|$)/i',
+        '/product-sitemap(?:\d+)?\.xml/i',
+        '/products-sitemap(?:\d+)?\.xml/i',
+        '/sitemap_products(?:_[a-z]{2})?(?:_\d+)?\.xml/i',
+        '/wp-sitemap-posts-product(?:-\d+)?\.xml/i',
+        '/store-products-sitemap\.xml/i',
+        '/posttype-product/i',
+        '/catalog_product/i',
+        '/_\d+_[a-z]{2}_1_sitemap\.xml/i',
+        '/\d+_[a-z]{2}_1_sitemap\.xml/i',
     ];
 
     public function __construct(
@@ -69,26 +85,26 @@ class StoreSitemapService
 
             if ($sitemapUrls === []) {
                 throw new \RuntimeException(
-                    'No sitemap found. We checked /sitemap.xml and BigCommerce /xmlsitemap.php. Make sure your storefront sitemap is publicly accessible.'
+                    'No sitemap found. We checked common storefront sitemap paths (including Shopify /sitemap.xml, WooCommerce /wp-sitemap.xml, BigCommerce /xmlsitemap.php, and Wix /store-products-sitemap.xml). Make sure your sitemap is publicly accessible.'
                 );
             }
 
             $allUrls = [];
-            $bigCommerceProductUrls = [];
+            $feedProductUrls = [];
             foreach ($sitemapUrls as $sitemapUrl) {
                 $allUrls = array_merge($allUrls, $this->parseSitemap($sitemapUrl));
-                $bigCommerceProductUrls = array_merge(
-                    $bigCommerceProductUrls,
-                    $this->extractBigCommerceProductUrls($sitemapUrl),
+                $feedProductUrls = array_merge(
+                    $feedProductUrls,
+                    $this->extractProductFeedUrls($sitemapUrl),
                 );
             }
 
             $productUrls = $this->filterProductUrls(array_values(array_unique($allUrls)), $base);
-            $bigCommerceProductUrls = $this->filterBigCommerceProductUrls(
-                array_values(array_unique($bigCommerceProductUrls)),
+            $feedProductUrls = $this->filterFeedProductUrls(
+                array_values(array_unique($feedProductUrls)),
                 $base,
             );
-            $productUrls = array_values(array_unique(array_merge($productUrls, $bigCommerceProductUrls)));
+            $productUrls = array_values(array_unique(array_merge($productUrls, $feedProductUrls)));
 
             if ($productUrls === []) {
                 if ($this->sessionService->isPasswordProtectedHtml($this->fetchText($base))) {
@@ -153,6 +169,7 @@ class StoreSitemapService
             $baseUrl.'/wp-sitemap.xml',
             $baseUrl.'/sitemap/sitemap.xml',
             $baseUrl.'/xmlsitemap.php',
+            $baseUrl.'/store-products-sitemap.xml',
         ];
 
         $found = [];
@@ -210,7 +227,7 @@ class StoreSitemapService
         return $urls;
     }
 
-    private function extractBigCommerceProductUrls(string $url, int $depth = 0): array
+    private function extractProductFeedUrls(string $url, int $depth = 0): array
     {
         if ($depth > 3) {
             return [];
@@ -222,7 +239,7 @@ class StoreSitemapService
         }
 
         $urls = [];
-        $isProductFeed = $this->isBigCommerceProductSitemapUrl($url);
+        $isProductFeed = $this->isProductSitemapUrl($url);
 
         if (preg_match_all('#<loc>(.*?)</loc>#is', $xml, $matches)) {
             foreach ($matches[1] as $loc) {
@@ -232,7 +249,7 @@ class StoreSitemapService
                 }
 
                 if ($this->looksLikeSitemapIndexEntry($loc, $xml)) {
-                    $urls = array_merge($urls, $this->extractBigCommerceProductUrls($loc, $depth + 1));
+                    $urls = array_merge($urls, $this->extractProductFeedUrls($loc, $depth + 1));
                     continue;
                 }
 
@@ -245,83 +262,139 @@ class StoreSitemapService
         return $urls;
     }
 
-    private function isBigCommerceProductSitemapUrl(string $url): bool
+    private function isProductSitemapUrl(string $url): bool
     {
-        return (bool) preg_match('/[?&]type=products(?:&|$)/i', $url);
+        foreach (self::PRODUCT_SITEMAP_URL_PATTERNS as $pattern) {
+            if (preg_match($pattern, $url)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    private function filterBigCommerceProductUrls(array $urls, string $baseUrl): array
+    private function filterFeedProductUrls(array $urls, string $baseUrl): array
     {
-        $host = parse_url($baseUrl, PHP_URL_HOST);
-
         return collect($urls)
-            ->filter(function (string $url) use ($host) {
-                $urlHost = parse_url($url, PHP_URL_HOST);
-                if ($urlHost && strcasecmp($urlHost, (string) $host) !== 0) {
-                    return false;
-                }
-
-                $path = parse_url($url, PHP_URL_PATH) ?? '';
-                if ($path === '' || $path === '/') {
-                    return false;
-                }
-
-                if (str_ends_with(strtolower($path), '.php')) {
-                    return false;
-                }
-
-                foreach (self::EXCLUDED_PATH_PATTERNS as $pattern) {
-                    if (preg_match($pattern, $path)) {
-                        return false;
-                    }
-                }
-
-                return true;
-            })
+            ->filter(fn (string $url) => $this->isLikelyFeedProductUrl($url, $baseUrl))
             ->unique()
             ->values()
             ->all();
-    }
-
-    private function looksLikeSitemapIndexEntry(string $loc, string $parentXml): bool
-    {
-        return str_contains($parentXml, '<sitemapindex')
-            || Str::endsWith(strtolower($loc), '.xml');
     }
 
     private function filterProductUrls(array $urls, string $baseUrl): array
     {
-        $host = parse_url($baseUrl, PHP_URL_HOST);
-
         return collect($urls)
-            ->filter(function (string $url) use ($host) {
-                $urlHost = parse_url($url, PHP_URL_HOST);
-                if ($urlHost && strcasecmp($urlHost, (string) $host) !== 0) {
-                    return false;
-                }
-
-                $path = parse_url($url, PHP_URL_PATH) ?? '';
-                if ($path === '' || $path === '/') {
-                    return false;
-                }
-
-                foreach (self::EXCLUDED_PATH_PATTERNS as $pattern) {
-                    if (preg_match($pattern, $path)) {
-                        return false;
-                    }
-                }
-
-                foreach (self::PRODUCT_PATH_PATTERNS as $pattern) {
-                    if (preg_match($pattern, $path)) {
-                        return true;
-                    }
-                }
-
-                return false;
-            })
+            ->filter(fn (string $url) => $this->isLikelyPatternProductUrl($url, $baseUrl))
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function isLikelyFeedProductUrl(string $url, string $baseUrl): bool
+    {
+        if (! $this->isSameStoreHost($url, $baseUrl)) {
+            return false;
+        }
+
+        if ($this->isOpenCartProductUrl($url)) {
+            return true;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH) ?? '';
+        if ($path === '' || $path === '/') {
+            return false;
+        }
+
+        if (str_ends_with(strtolower($path), '.php')) {
+            return false;
+        }
+
+        foreach (self::EXCLUDED_PATH_PATTERNS as $pattern) {
+            if (preg_match($pattern, $path)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isLikelyPatternProductUrl(string $url, string $baseUrl): bool
+    {
+        if (! $this->isSameStoreHost($url, $baseUrl)) {
+            return false;
+        }
+
+        if ($this->isOpenCartProductUrl($url)) {
+            return true;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH) ?? '';
+        if ($path === '' || $path === '/') {
+            return false;
+        }
+
+        if (str_ends_with(strtolower($path), '.php') && ! $this->isOpenCartProductUrl($url)) {
+            return false;
+        }
+
+        foreach (self::EXCLUDED_PATH_PATTERNS as $pattern) {
+            if (preg_match($pattern, $path)) {
+                return false;
+            }
+        }
+
+        foreach (self::PRODUCT_PATH_PATTERNS as $pattern) {
+            if (preg_match($pattern, $path)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isSameStoreHost(string $url, string $baseUrl): bool
+    {
+        $urlHost = parse_url($url, PHP_URL_HOST);
+        $baseHost = parse_url($baseUrl, PHP_URL_HOST);
+
+        if (! $urlHost || ! $baseHost) {
+            return true;
+        }
+
+        return $this->hostsMatch($urlHost, $baseHost);
+    }
+
+    private function isOpenCartProductUrl(string $url): bool
+    {
+        $query = parse_url($url, PHP_URL_QUERY);
+        if (! is_string($query) || $query === '') {
+            return false;
+        }
+
+        parse_str($query, $params);
+        $route = strtolower((string) ($params['route'] ?? ''));
+
+        return $route === 'product/product' || $route === 'product/product/review';
+    }
+
+    private function hostsMatch(string $leftHost, string $rightHost): bool
+    {
+        $normalize = static fn (string $host): string => strtolower(preg_replace('/^www\./', '', $host) ?? $host);
+
+        return $normalize($leftHost) === $normalize($rightHost);
+    }
+
+    private function looksLikeSitemapIndexEntry(string $loc, string $parentXml): bool
+    {
+        if (str_contains($parentXml, '<sitemapindex')) {
+            return true;
+        }
+
+        $path = parse_url($loc, PHP_URL_PATH) ?? '';
+
+        return Str::endsWith(strtolower($path), '.xml')
+            || Str::contains(strtolower($loc), 'xmlsitemap.php');
     }
 
     private function urlExists(string $url): bool
