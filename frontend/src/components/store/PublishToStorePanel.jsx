@@ -5,7 +5,9 @@ import api from '../../api/client';
 import { PLATFORM_EXPORTS } from '../../constants/platformExports';
 import { MANUAL_PUBLISH_STEPS } from '../../constants/storePublish';
 import { downloadExport } from '../../utils/download';
+import { getStorePlatform } from '../../constants/storePlatforms';
 import ShopifyConnectButton from './ShopifyConnectButton';
+import StorePlatformLogo from './StorePlatformLogo';
 
 export default function PublishToStorePanel({
   productId = null,
@@ -20,6 +22,15 @@ export default function PublishToStorePanel({
   const [pushing, setPushing] = useState(false);
   const [pushResult, setPushResult] = useState(null);
   const [pushError, setPushError] = useState('');
+
+  const platformConfig = store?.platform ? getStorePlatform(store.platform) : null;
+  const isShopify = store?.platform === 'shopify';
+  const showShopifyPush = isShopify;
+  const showShopifyOAuth = isShopify && store?.shopify_oauth_enabled !== false;
+  const platformExports = store?.platform
+    ? PLATFORM_EXPORTS.filter((item) => item.format === store.platform)
+    : PLATFORM_EXPORTS;
+  const exportOptions = platformExports.length > 0 ? platformExports : PLATFORM_EXPORTS;
 
   const handleCopyAll = async () => {
     if (!onCopyAll) return;
@@ -91,7 +102,7 @@ export default function PublishToStorePanel({
                       {copied ? 'Copied!' : 'Copy All'}
                     </Button>
                   )}
-                  {productId && PLATFORM_EXPORTS.map((item) => (
+                  {productId && exportOptions.map((item) => (
                     <Button
                       key={item.format}
                       variant="outline-secondary"
@@ -112,6 +123,7 @@ export default function PublishToStorePanel({
             </Card>
           </Col>
 
+          {showShopifyPush && (
           <Col lg={compact ? 12 : 4}>
             <Card className="h-100 border">
               <Card.Body>
@@ -169,7 +181,37 @@ export default function PublishToStorePanel({
               </Card.Body>
             </Card>
           </Col>
+          )}
 
+          {!isShopify && platformConfig && (
+          <Col lg={compact ? 12 : 4}>
+            <Card className="h-100 border">
+              <Card.Body>
+                <div className="d-flex align-items-center gap-2 mb-2">
+                  <StorePlatformLogo platformId={platformConfig.id} size={22} />
+                  <Badge bg="warning" text="dark">Level 2</Badge>
+                  <strong>Update in {platformConfig.label}</strong>
+                </div>
+                <p className="text-muted small">
+                  One-click push is not available for {platformConfig.label} yet.
+                  Export optimized content and paste it in your store admin.
+                </p>
+                <ol className="small text-muted ps-3 mb-3">
+                  {platformConfig.publishSteps.map((step) => (
+                    <li key={step} className="mb-1">{step}</li>
+                  ))}
+                </ol>
+                <Link to="/store#guided-api-setup">
+                  <Button variant="outline-primary" size="sm">
+                    Open guided setup
+                  </Button>
+                </Link>
+              </Card.Body>
+            </Card>
+          </Col>
+          )}
+
+          {showShopifyOAuth && (
           <Col lg={compact ? 12 : 4}>
             <Card className="h-100 border bg-light">
               <Card.Body>
@@ -191,6 +233,7 @@ export default function PublishToStorePanel({
               </Card.Body>
             </Card>
           </Col>
+          )}
         </Row>
       </Card.Body>
     </Card>

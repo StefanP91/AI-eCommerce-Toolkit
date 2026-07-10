@@ -70,8 +70,8 @@ export default function StorePlatformConnect({
                   <>
                     <Badge bg="success" className="mb-2">Push to store available</Badge>
                     <p className="small text-muted mb-0">
-                      Use Guided API setup or Shopify OAuth to enable one-click publishing
-                      after your store is scanned.
+                      Use Guided API setup{platform.supportsOAuth ? ' or Shopify OAuth' : ''} to enable
+                      one-click publishing after your store is scanned.
                     </p>
                   </>
                 ) : (

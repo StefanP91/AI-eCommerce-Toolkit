@@ -74,7 +74,7 @@ function SecretInput({ name, label, value, onChange, placeholder }) {
 }
 
 export default function StoreApiSetup({ store, onUpdated }) {
-  const storePlatform = store?.platform || 'shopify';
+  const storePlatform = store?.platform ?? null;
   const [form, setForm] = useState({
     admin_access_token: '',
     consumer_key: '',
@@ -246,7 +246,11 @@ export default function StoreApiSetup({ store, onUpdated }) {
               </a>
             </Card.Body>
           </Card>
-        ) : null}
+        ) : (
+          <Alert variant="warning" className="mb-0">
+            Reconnect your store and choose your e-commerce platform so we can show the right setup steps.
+          </Alert>
+        )}
 
         {storePlatform === 'shopify' && (
         <Card className="border bg-light mt-4">
