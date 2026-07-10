@@ -18,6 +18,7 @@ import StorePlatformConnect from '../components/store/StorePlatformConnect';
 import VisitorPasswordInput from '../components/store/VisitorPasswordInput';
 import StorePlatformLogo from '../components/store/StorePlatformLogo';
 import { getStorePlatform } from '../constants/storePlatforms';
+import { validateStoreUrlForPlatform } from '../utils/storePlatformUrl';
 import StoreApiSetup from '../components/store/StoreApiSetup';
 import StoreProductAuditFix from '../components/store/StoreProductAuditFix';
 import StoreProductTableToolbar, { MAX_BULK_SEO_SELECT } from '../components/store/StoreProductTableToolbar';
@@ -103,6 +104,7 @@ export default function StoreOverview() {
   const [storeUrl, setStoreUrl] = useState('');
   const [visitorPassword, setVisitorPassword] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState(null);
+  const [connectUrlError, setConnectUrlError] = useState('');
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -247,12 +249,25 @@ export default function StoreOverview() {
   const handleConnect = async (e) => {
     e.preventDefault();
     setError('');
+    setConnectUrlError('');
+
+    if (!selectedPlatform) {
+      setConnectUrlError('Choose a platform before connecting your store URL.');
+      return;
+    }
+
+    const urlCheck = validateStoreUrlForPlatform(storeUrl, selectedPlatform);
+    if (!urlCheck.valid) {
+      setConnectUrlError(urlCheck.message);
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const payload = { store_url: storeUrl };
-      if (selectedPlatform) {
-        payload.platform = selectedPlatform;
-      }
+      const payload = {
+        store_url: storeUrl,
+        platform: selectedPlatform,
+      };
       if (visitorPassword.trim()) {
         payload.visitor_password = visitorPassword;
       }
@@ -630,12 +645,19 @@ export default function StoreOverview() {
             <StorePlatformConnect
               platformId={selectedPlatform}
               storeUrl={storeUrl}
-              onStoreUrlChange={setStoreUrl}
+              onStoreUrlChange={(value) => {
+                setStoreUrl(value);
+                setConnectUrlError('');
+              }}
               visitorPassword={visitorPassword}
               onVisitorPasswordChange={setVisitorPassword}
               submitting={submitting}
               onSubmit={handleConnect}
-              onBack={() => setSelectedPlatform(null)}
+              onBack={() => {
+                setSelectedPlatform(null);
+                setConnectUrlError('');
+              }}
+              urlError={connectUrlError}
             />
           )
         ) : (

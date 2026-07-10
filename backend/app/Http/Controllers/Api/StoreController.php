@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\StoreConnection;
 use App\Services\StoreApiCredentialsService;
 use App\Services\StoreContextAuditService;
+use App\Services\StorePlatformUrlService;
 use App\Services\StoreScanService;
 use App\Services\StoreSitemapService;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +19,7 @@ class StoreController extends Controller
         private StoreScanService $scanService,
         private StoreApiCredentialsService $apiCredentialsService,
         private StoreContextAuditService $storeContextAudit,
+        private StorePlatformUrlService $platformUrlService,
     ) {}
 
     public function show(Request $request): JsonResponse
@@ -44,11 +46,21 @@ class StoreController extends Controller
         $validated = $request->validate([
             'store_url' => ['required', 'string', 'max:500'],
             'visitor_password' => ['nullable', 'string', 'max:255'],
-            'platform' => ['nullable', 'string', 'in:shopify,woocommerce,wix,bigcommerce,magento,squarespace,prestashop,opencart,square'],
+            'platform' => ['required', 'string', 'in:shopify,woocommerce,wix,bigcommerce,magento,squarespace,prestashop,opencart,square'],
         ]);
 
         try {
             $normalizedUrl = $this->sitemapService->normalizeBaseUrl($validated['store_url']);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        try {
+            $this->platformUrlService->validateForPlatform(
+                $normalizedUrl,
+                $validated['platform'],
+                $validated['visitor_password'] ?? null,
+            );
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -59,14 +71,11 @@ class StoreController extends Controller
             'product_count' => 0,
             'avg_seo_score' => null,
             'error_message' => null,
+            'platform' => $validated['platform'],
         ];
 
         if (array_key_exists('visitor_password', $validated)) {
             $attributes['store_password'] = $validated['visitor_password'] ?: null;
-        }
-
-        if (! empty($validated['platform'])) {
-            $attributes['platform'] = $validated['platform'];
         }
 
         $store = StoreConnection::updateOrCreate(

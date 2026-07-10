@@ -21,6 +21,7 @@ export default function StorePlatformConnect({
   submitting,
   onSubmit,
   onBack,
+  urlError = '',
 }) {
   const platform = getStorePlatform(platformId);
 
@@ -106,6 +107,9 @@ export default function StorePlatformConnect({
                   required
                 />
                 <Form.Text className="text-muted">{platform.urlHelp}</Form.Text>
+                {urlError && (
+                  <div className="text-danger small mt-1">{urlError}</div>
+                )}
               </Form.Group>
             </Col>
             <Col md={4}>
