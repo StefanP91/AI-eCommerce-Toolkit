@@ -39,8 +39,20 @@ function matchesProductSearch(product, query) {
   return name.includes(q) || url.includes(q) || slug.includes(q);
 }
 
+const BULK_PROJECTS_STORAGE_KEY = 'store_bulk_project_by_url';
+
 function normalizeUrlKey(url) {
-  return (url || '').replace(/\/$/, '').toLowerCase().split('?')[0];
+  try {
+    const raw = (url || '').trim();
+    if (!raw) return '';
+    const parsed = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+    const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+    const path = parsed.pathname.replace(/\/$/, '').toLowerCase();
+
+    return `${host}${path}`;
+  } catch {
+    return (url || '').replace(/\/$/, '').toLowerCase().split('?')[0];
+  }
 }
 
 function storeProductScorePatch(source) {
@@ -157,8 +169,27 @@ export default function StoreOverview() {
   const [bulkIndex, setBulkIndex] = useState(0);
   const [bulkError, setBulkError] = useState('');
   const [selectionNotice, setSelectionNotice] = useState('');
-  const [bulkProjectByUrl, setBulkProjectByUrl] = useState({});
+  const [bulkProjectByUrl, setBulkProjectByUrl] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(BULK_PROJECTS_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [bulkCompletedAction, setBulkCompletedAction] = useState(null);
+
+  const persistBulkProjectMap = (updater) => {
+    setBulkProjectByUrl((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      try {
+        sessionStorage.setItem(BULK_PROJECTS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
 
   const isPro = plan === 'pro';
 
@@ -438,13 +469,15 @@ export default function StoreOverview() {
 
         const saveRes = await api.post('/products', {
           ...generateRes.data.input,
+          product_url: product.url,
+          product_name: product.product_name || generateRes.data.input?.product_name,
           generated_content: generateRes.data.content,
           seo_score: generateRes.data.seo_score,
           seo_checks: generateRes.data.seo_checks,
           history_id: generateRes.data.history_id,
         });
 
-        setBulkProjectByUrl((prev) => ({
+        persistBulkProjectMap((prev) => ({
           ...prev,
           [normalizeUrlKey(product.url)]: saveRes.data.product.id,
         }));
@@ -478,32 +511,70 @@ export default function StoreOverview() {
     setBulkCompletedAction(null);
   };
 
+  const clearBulkSelection = () => {
+    setSelectedIds(new Set());
+    setSelectionNotice('');
+  };
+
+  const finishBulkPush = () => {
+    clearBulkSelection();
+    dismissBulkProgress();
+  };
+
   const getProjectIdForStoreProduct = (storeProduct) => (
     bulkProjectByUrl[normalizeUrlKey(storeProduct.url)]
   );
 
-  const resolvePushTargets = (storeProducts) => {
-    const seen = new Set();
+  const resolveProjectIdForStoreProduct = async (storeProduct) => {
+    const cached = getProjectIdForStoreProduct(storeProduct);
+    if (cached) return cached;
 
-    return storeProducts
-      .map((storeProduct) => ({
-        storeProduct,
-        projectId: getProjectIdForStoreProduct(storeProduct),
-      }))
-      .filter((entry) => entry.projectId)
-      .filter((entry) => {
-        const key = normalizeUrlKey(entry.storeProduct.url);
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+    try {
+      const res = await api.get('/products/by-url', { params: { url: storeProduct.url } });
+      const projectId = res.data.product?.id;
+      if (projectId) {
+        persistBulkProjectMap((prev) => ({
+          ...prev,
+          [normalizeUrlKey(storeProduct.url)]: projectId,
+        }));
+        return projectId;
+      }
+    } catch {
+      // no saved project for this URL
+    }
+
+    return null;
   };
 
-  const selectedPushableCount = resolvePushTargets(selectedProducts).length;
-  const bulkPushableCount = resolvePushTargets(bulkItems).length;
+  const resolvePushTargets = async (storeProducts) => {
+    const seen = new Set();
+    const targets = [];
+
+    for (const storeProduct of storeProducts) {
+      const key = normalizeUrlKey(storeProduct.url);
+      if (!key || seen.has(key)) continue;
+
+      const projectId = await resolveProjectIdForStoreProduct(storeProduct);
+      if (!projectId) continue;
+
+      seen.add(key);
+      targets.push({ storeProduct, projectId });
+    }
+
+    return targets;
+  };
+
+  const selectedPushableCount = useMemo(
+    () => selectedProducts.filter((product) => getProjectIdForStoreProduct(product)).length,
+    [selectedProducts, bulkProjectByUrl],
+  );
+  const bulkPushableCount = useMemo(
+    () => bulkItems.filter((product) => getProjectIdForStoreProduct(product)).length,
+    [bulkItems, bulkProjectByUrl],
+  );
 
   const handleBulkPush = async (storeProducts) => {
-    const targets = resolvePushTargets(storeProducts);
+    const targets = await resolvePushTargets(storeProducts);
 
     if (!store?.push_available) {
       setError('Connect your Shopify store API first in the guided setup below.');
@@ -532,7 +603,9 @@ export default function StoreOverview() {
         const { storeProduct, projectId } = targets[index];
         setBulkIndex(index);
 
-        const pushRes = await api.post(`/products/${projectId}/push-to-store`);
+        const pushRes = await api.post(`/products/${projectId}/push-to-store`, {
+          store_product_url: storeProduct.url,
+        });
 
         if (pushRes.data.store_product) {
           mergeStoreProduct(pushRes.data.store_product);
@@ -554,8 +627,7 @@ export default function StoreOverview() {
       }
 
       await loadStore();
-      setBulkIndex(targets.length);
-      setBulkCompletedAction('push');
+      finishBulkPush();
     } catch (err) {
       setBulkError(err.response?.data?.message || 'Bulk push to Shopify failed. Please try again.');
       setBulkIndex(targets.length);
@@ -799,7 +871,7 @@ export default function StoreOverview() {
                     totalCount={products.length}
                     selectedCount={selectedIds.size}
                     onSelectAllFiltered={handleSelectAllFiltered}
-                    onClearSelection={() => setSelectedIds(new Set())}
+                    onClearSelection={clearBulkSelection}
                     onBulkAudit={handleBulkAudit}
                     onBulkFix={handleBulkFix}
                     onBulkPush={() => handleBulkPush(selectedProducts)}

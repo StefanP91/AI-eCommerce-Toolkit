@@ -46,6 +46,7 @@ export default function ProductResults({
   onSave,
   saving = false,
   store = null,
+  storeProductUrl = null,
   onPushSuccess = null,
   hideSeoScore = false,
   showStorePublish = false,
@@ -122,6 +123,7 @@ export default function ProductResults({
       {showStorePublish && (
         <PublishToStorePanel
           productId={isSaved ? product.id : null}
+          storeProductUrl={storeProductUrl}
           onCopyAll={handleCopyAll}
           store={store}
           onPushSuccess={onPushSuccess}

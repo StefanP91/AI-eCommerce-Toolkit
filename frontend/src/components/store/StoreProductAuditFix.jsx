@@ -137,11 +137,10 @@ export default function StoreProductAuditFix({
       });
       const score = pushData.live_score ?? pushData.store_product.seo_score;
       if (score != null) {
-        setLivePageAudit((previous) => ({
-          ...(previous ?? auditResult ?? {}),
+        setLivePageAudit({
           score,
-          checks: pushData.store_product.seo_checks ?? previous?.checks,
-        }));
+          checks: pushData.store_product.seo_checks ?? {},
+        });
       }
       setPhase('done');
       return;
@@ -275,6 +274,7 @@ export default function StoreProductAuditFix({
             <ProductResults
               result={generatedResult}
               store={store}
+              storeProductUrl={product.url}
               onPushSuccess={handlePushSuccess}
               hideSeoScore
               showStorePublish

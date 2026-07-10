@@ -89,7 +89,7 @@ class StoreScanService
         return $store->fresh(['products']);
     }
 
-    public function rescanProductUrl(StoreConnection $store, string $url, int $attempts = 3): ?\App\Models\StoreProduct
+    public function rescanProductUrl(StoreConnection $store, string $url, int $attempts = 5): ?\App\Models\StoreProduct
     {
         $storeProduct = $this->findStoreProductByUrl($store, $url);
 
@@ -108,7 +108,7 @@ class StoreScanService
 
         for ($attempt = 1; $attempt <= max(1, $attempts); $attempt++) {
             if ($attempt > 1) {
-                sleep(3);
+                sleep(5);
             }
 
             try {

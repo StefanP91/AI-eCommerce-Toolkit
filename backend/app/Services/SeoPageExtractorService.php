@@ -44,6 +44,8 @@ class SeoPageExtractorService
             $h1 = $ogTitle;
         }
 
+        $pageTitle = $this->normalizePageTitleForAudit($pageTitle ?? '', $ogTitle ?? '');
+
         $jsonLdProduct = $this->extractPrimaryJsonLdProduct($html);
 
         if (strlen($pageTitle ?? '') < 30 && strlen($jsonLdProduct['name'] ?? '') >= 30) {
@@ -314,6 +316,33 @@ class SeoPageExtractorService
         }
 
         return null;
+    }
+
+    private function normalizePageTitleForAudit(string $pageTitle, string $ogTitle): string
+    {
+        $pageTitle = trim($pageTitle);
+        $ogTitle = trim($ogTitle);
+
+        if ($pageTitle === '') {
+            return $ogTitle;
+        }
+
+        if (strlen($pageTitle) > 60) {
+            $stripped = trim(preg_replace('/\s*[\|–—-]\s*.+$/u', '', $pageTitle) ?? $pageTitle);
+            if (strlen($stripped) >= 30 && strlen($stripped) <= 60) {
+                return $stripped;
+            }
+
+            if (strlen($ogTitle) >= 30 && strlen($ogTitle) <= 60) {
+                return $ogTitle;
+            }
+        }
+
+        if (strlen($pageTitle) < 30 && strlen($ogTitle) >= 30 && strlen($ogTitle) <= 60) {
+            return $ogTitle;
+        }
+
+        return $pageTitle;
     }
 
     private function nameFromUrl(string $url): string

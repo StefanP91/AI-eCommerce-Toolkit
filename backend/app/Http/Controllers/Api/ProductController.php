@@ -164,6 +164,31 @@ class ProductController extends Controller
         return response()->json($products);
     }
 
+    public function latestByUrl(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'url' => ['required', 'url', 'max:500'],
+        ]);
+
+        $target = strtolower(rtrim(parse_url($validated['url'], PHP_URL_PATH) ?? '', '/'));
+
+        $product = Product::where('user_id', $request->user()->id)
+            ->whereNotNull('product_url')
+            ->latest()
+            ->get()
+            ->first(function (Product $candidate) use ($target) {
+                $path = strtolower(rtrim(parse_url((string) $candidate->product_url, PHP_URL_PATH) ?? '', '/'));
+
+                return $path !== '' && $path === $target;
+            });
+
+        if (! $product) {
+            return response()->json(['message' => 'No saved project found for this product URL.'], 404);
+        }
+
+        return response()->json(['product' => $product]);
+    }
+
     public function show(Request $request, Product $product): JsonResponse
     {
         if ($product->user_id !== $request->user()->id) {
@@ -311,7 +336,17 @@ class ProductController extends Controller
             ? 'Product updated on Shopify successfully.'
             : 'Product published to Shopify successfully.';
 
-        $auditUrl = $product->product_url;
+        $auditUrl = $request->input('store_product_url')
+            ?? $request->input('audit_url')
+            ?? $product->product_url;
+
+        if ($auditUrl) {
+            $matched = $this->storeScanService->findStoreProductByUrl($store, $auditUrl);
+            if ($matched) {
+                $auditUrl = $matched->url;
+            }
+        }
+
         if (! $auditUrl && ! empty($result['handle'])) {
             $auditUrl = rtrim($store->store_url, '/').'/products/'.$result['handle'];
         }
@@ -319,8 +354,8 @@ class ProductController extends Controller
         $storeProduct = null;
         if ($auditUrl) {
             try {
-                sleep(3);
-                $storeProduct = $this->storeScanService->rescanProductUrl($store->fresh(), $auditUrl);
+                sleep(5);
+                $storeProduct = $this->storeScanService->rescanProductUrl($store->fresh(), $auditUrl, 5);
             } catch (\Throwable $e) {
                 Log::warning('Product rescan after Shopify push failed', [
                     'product_id' => $product->id,
@@ -340,9 +375,14 @@ class ProductController extends Controller
             'message' => $message,
             'shopify' => $result,
             'store' => $store->toApiArray(),
-            'store_product' => $storeProduct?->only([
-                'id', 'url', 'product_name', 'seo_score', 'status',
-            ]),
+            'store_product' => $storeProduct ? [
+                'id' => $storeProduct->id,
+                'url' => $storeProduct->url,
+                'product_name' => $storeProduct->product_name,
+                'seo_score' => $storeProduct->seo_score,
+                'seo_checks' => $storeProduct->seo_checks,
+                'status' => $storeProduct->status,
+            ] : null,
             'live_score' => $storeProduct?->seo_score,
         ]);
     }

@@ -78,7 +78,7 @@ class ShopifyProductPushService
 
         try {
             $this->updateSeoMetafields($host, $token, $shopifyProductId, $product);
-            $this->updateProductImageAlt($host, $token, $shopifyProductId, $product);
+            $this->ensureProductImageWithAlt($host, $token, $shopifyProductId, $product);
         } catch (\Throwable $e) {
             Log::warning('Shopify SEO follow-up failed after product create', [
                 'shopify_product_id' => $shopifyProductId,
@@ -117,7 +117,7 @@ class ShopifyProductPushService
 
         try {
             $this->updateSeoMetafields($host, $token, $shopifyProductId, $product);
-            $this->updateProductImageAlt($host, $token, $shopifyProductId, $product);
+            $this->ensureProductImageWithAlt($host, $token, $shopifyProductId, $product);
         } catch (\Throwable $e) {
             Log::warning('Shopify SEO metafield update failed after product push', [
                 'shopify_product_id' => $shopifyProductId,
@@ -199,7 +199,7 @@ class ShopifyProductPushService
         }
     }
 
-    private function updateProductImageAlt(string $host, string $token, int $shopifyProductId, Product $product): void
+    private function ensureProductImageWithAlt(string $host, string $token, int $shopifyProductId, Product $product): void
     {
         $content = $this->platformExport->optimizedContentForPush($product);
         $alt = trim((string) ($content['image_alt_text'] ?? ''));
@@ -219,6 +219,17 @@ class ShopifyProductPushService
 
         $images = $response->json('product.images') ?? [];
         if (! is_array($images) || $images === []) {
+            $this->shopifyRequest($token)
+                ->put($this->apiUrl($host, "products/{$shopifyProductId}.json"), [
+                    'product' => [
+                        'id' => $shopifyProductId,
+                        'images' => [[
+                            'src' => 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-product-1_large.png',
+                            'alt' => $alt,
+                        ]],
+                    ],
+                ]);
+
             return;
         }
 
@@ -258,6 +269,13 @@ class ShopifyProductPushService
             ->get($this->apiUrl($host, "products/{$shopifyProductId}/metafields.json"));
 
         if (! $listResponse->successful()) {
+            Log::warning('Shopify metafield list failed', [
+                'shopify_product_id' => $shopifyProductId,
+                'key' => $key,
+                'status' => $listResponse->status(),
+                'body' => $listResponse->body(),
+            ]);
+
             return;
         }
 
@@ -271,7 +289,7 @@ class ShopifyProductPushService
             });
 
         if (is_array($existing) && ! empty($existing['id'])) {
-            $this->shopifyRequest($token)
+            $updateResponse = $this->shopifyRequest($token)
                 ->put($this->apiUrl($host, "metafields/{$existing['id']}.json"), [
                     'metafield' => [
                         'id' => $existing['id'],
@@ -280,10 +298,19 @@ class ShopifyProductPushService
                     ],
                 ]);
 
+            if (! $updateResponse->successful()) {
+                Log::warning('Shopify metafield update failed', [
+                    'metafield_id' => $existing['id'],
+                    'key' => $key,
+                    'status' => $updateResponse->status(),
+                    'body' => $updateResponse->body(),
+                ]);
+            }
+
             return;
         }
 
-        $this->shopifyRequest($token)
+        $createResponse = $this->shopifyRequest($token)
             ->post($this->apiUrl($host, "products/{$shopifyProductId}/metafields.json"), [
                 'metafield' => [
                     'namespace' => 'global',
@@ -292,6 +319,15 @@ class ShopifyProductPushService
                     'type' => 'single_line_text_field',
                 ],
             ]);
+
+        if (! $createResponse->successful()) {
+            Log::warning('Shopify metafield create failed', [
+                'shopify_product_id' => $shopifyProductId,
+                'key' => $key,
+                'status' => $createResponse->status(),
+                'body' => $createResponse->body(),
+            ]);
+        }
     }
 
     private function shopifyRequest(string $token)

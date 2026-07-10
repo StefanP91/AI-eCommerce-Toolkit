@@ -49,6 +49,10 @@ class SeoAuditService
             'product_in_title' => $this->checkProductInTitle($page),
         ];
 
+        if ($urlMode && (int) ($page['images_total'] ?? 0) === 0) {
+            unset($checks['image_alt']);
+        }
+
         if ($urlMode) {
             $checks['open_graph'] = $this->checkOpenGraph($page);
             $checks['product_schema'] = $this->checkProductSchema($page);

@@ -245,7 +245,7 @@ class PlatformExportService
                 'type' => 'single_line_text_field',
             ];
         }
-        if ($metafields !== [] && ! $forUpdate) {
+        if ($metafields !== []) {
             $payload['metafields'] = $metafields;
         }
 
@@ -345,11 +345,12 @@ class PlatformExportService
 
         $fallback = trim((string) ($content['seo_title'] ?? $fields['meta_title'] ?? $fields['name']));
         if ($fallback === '') {
-            return 'Premium Product | Shop Online';
+            return 'Premium Product | Shop Online Today';
         }
 
         if (strlen($fallback) < 20) {
-            $fallback .= ' | Premium Quality';
+            $suffix = ' | Premium Quality Product';
+            $fallback = Str::limit($fallback.$suffix, 70, '');
         }
 
         return Str::limit($fallback, 70, '');

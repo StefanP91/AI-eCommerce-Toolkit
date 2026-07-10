@@ -9,6 +9,7 @@ import ShopifyConnectButton from './ShopifyConnectButton';
 
 export default function PublishToStorePanel({
   productId = null,
+  storeProductUrl = null,
   onCopyAll,
   store = null,
   compact = false,
@@ -43,7 +44,9 @@ export default function PublishToStorePanel({
     setPushError('');
     setPushResult(null);
     try {
-      const res = await api.post(`/products/${productId}/push-to-store`);
+      const res = await api.post(`/products/${productId}/push-to-store`, {
+        store_product_url: storeProductUrl || undefined,
+      });
       setPushResult(res.data);
       onPushSuccess?.(res.data);
     } catch (err) {
