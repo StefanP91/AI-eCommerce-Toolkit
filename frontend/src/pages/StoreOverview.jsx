@@ -444,7 +444,7 @@ export default function StoreOverview() {
     const targets = needsWork.length > 0 ? needsWork : selectedProducts;
 
     if (!window.confirm(
-      `Run AI SEO fix for ${targets.length} product${targets.length === 1 ? '' : 's'}? This uses generation credits.`,
+      `Run AI SEO fix for ${targets.length} product${targets.length === 1 ? '' : 's'}?`,
     )) {
       return;
     }
