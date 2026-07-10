@@ -237,6 +237,10 @@ class StoreSitemapService
             return [];
         }
 
+        if ($this->isBigCommerceProductSitemapUrl($url)) {
+            return $this->extractBigCommerceProductFeedPages($url);
+        }
+
         $xml = $this->fetchText($url);
         if (! $this->isSitemapXml($xml)) {
             return [];
@@ -264,6 +268,55 @@ class StoreSitemapService
         }
 
         return $urls;
+    }
+
+    private function isBigCommerceProductSitemapUrl(string $url): bool
+    {
+        return str_contains(strtolower($url), 'xmlsitemap.php')
+            && preg_match('/[?&]type=products(?:&|$)/i', $url);
+    }
+
+    private function extractBigCommerceProductFeedPages(string $url): array
+    {
+        $urls = [];
+
+        for ($page = 1; $page <= 200; $page++) {
+            $pageUrl = $this->bigCommerceProductSitemapPageUrl($url, $page);
+            $xml = $this->fetchText($pageUrl);
+
+            if (! $this->isSitemapXml($xml) || ! str_contains($xml, '<urlset')) {
+                break;
+            }
+
+            $pageUrls = [];
+            if (preg_match_all('#<loc>(.*?)</loc>#is', $xml, $matches)) {
+                foreach ($matches[1] as $loc) {
+                    $loc = html_entity_decode(trim($loc), ENT_QUOTES | ENT_XML1, 'UTF-8');
+                    if ($loc !== '') {
+                        $pageUrls[] = $loc;
+                    }
+                }
+            }
+
+            if ($pageUrls === []) {
+                break;
+            }
+
+            $urls = array_merge($urls, $pageUrls);
+        }
+
+        return $urls;
+    }
+
+    private function bigCommerceProductSitemapPageUrl(string $url, int $page): string
+    {
+        if (preg_match('/([?&])page=\d+/i', $url)) {
+            return preg_replace('/([?&])page=\d+/i', '${1}page='.$page, $url) ?? $url;
+        }
+
+        $separator = str_contains($url, '?') ? '&' : '?';
+
+        return $url.$separator.'page='.$page;
     }
 
     private function isProductSitemapUrl(string $url): bool

@@ -768,6 +768,11 @@ export default function StoreOverview() {
                       of {store.catalog_product_count} in catalog
                     </small>
                   )}
+                  {store.platform === 'bigcommerce' && store.catalog_product_count > 0 && (
+                    <small className="text-muted d-block mt-1">
+                      Count is from the public BigCommerce sitemap. Admin products that are hidden or not assigned to this storefront channel are not included.
+                    </small>
+                  )}
                 </Card.Body>
               </Card>
             </Col>

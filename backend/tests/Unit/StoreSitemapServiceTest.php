@@ -34,6 +34,35 @@ XML,
         ], $urls);
     }
 
+    public function test_discovers_bigcommerce_products_across_paginated_product_sitemaps(): void
+    {
+        $this->fakeStoreResponses('https://bc.example.com', [
+            'https://bc.example.com/xmlsitemap.php' => <<<'XML'
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap><loc>https://bc.example.com/xmlsitemap.php?type=products&amp;page=1</loc></sitemap>
+</sitemapindex>
+XML,
+            'https://bc.example.com/xmlsitemap.php?type=products&page=1' => <<<'XML'
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://bc.example.com/product-a/</loc></url>
+</urlset>
+XML,
+            'https://bc.example.com/xmlsitemap.php?type=products&page=2' => <<<'XML'
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://bc.example.com/product-b/</loc></url>
+</urlset>
+XML,
+            'https://bc.example.com/xmlsitemap.php?type=products&page=3' => Http::response('', 404),
+        ]);
+
+        $urls = $this->service()->discoverProductUrls('https://bc.example.com', 0);
+
+        $this->assertSame([
+            'https://bc.example.com/product-a/',
+            'https://bc.example.com/product-b/',
+        ], $urls);
+    }
+
     public function test_discovers_shopify_products_from_product_sitemap_feed(): void
     {
         $this->fakeStoreResponses('https://demo-store.myshopify.com', [
