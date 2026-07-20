@@ -8,7 +8,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { buildSeoFromProduct } from "../lib/seo.server";
+import { generateProductContent } from "../lib/ai.server";
 
 type ProductNode = {
   id: string;
@@ -16,7 +16,6 @@ type ProductNode = {
   handle: string;
   descriptionHtml: string;
   status: string;
-  onlineStoreUrl: string | null;
   seo: {
     title: string | null;
     description: string | null;
@@ -29,7 +28,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const response = await admin.graphql(
     `#graphql
       query ProductList {
-        products(first: 15, sortKey: UPDATED_AT, reverse: true) {
+        products(first: 25, sortKey: UPDATED_AT, reverse: true) {
           edges {
             node {
               id
@@ -37,7 +36,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               handle
               descriptionHtml
               status
-              onlineStoreUrl
               seo {
                 title
                 description
@@ -55,7 +53,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     products,
-    webUrl: process.env.AI_COMMERCE_WEB_URL || "https://ai-ecommerce-suite.netlify.app",
+    aiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
   };
 };
 
@@ -65,7 +63,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const productId = String(formData.get("productId") || "");
 
   if (!productId) {
-    return { ok: false, error: "Missing product id" };
+    return { ok: false as const, error: "Missing product id" };
   }
 
   const productResponse = await admin.graphql(
@@ -75,10 +73,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           id
           title
           descriptionHtml
-          seo {
-            title
-            description
-          }
         }
       }`,
     { variables: { id: productId } },
@@ -88,21 +82,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const product = productJson.data?.product;
 
   if (!product) {
-    return { ok: false, error: "Product not found" };
+    return { ok: false as const, error: "Product not found" };
   }
 
-  const seo = buildSeoFromProduct({
-    title: product.title,
-    descriptionHtml: product.descriptionHtml || "",
-  });
+  let generated;
+  try {
+    generated = await generateProductContent({
+      title: product.title,
+      descriptionHtml: product.descriptionHtml || "",
+    });
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "AI generation failed",
+    };
+  }
 
   const updateResponse = await admin.graphql(
     `#graphql
-      mutation UpdateProductSeo($product: ProductUpdateInput!) {
+      mutation UpdateProductContent($product: ProductUpdateInput!) {
         productUpdate(product: $product) {
           product {
             id
             title
+            descriptionHtml
             seo {
               title
               description
@@ -118,9 +121,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       variables: {
         product: {
           id: productId,
+          title: generated.title,
+          descriptionHtml: generated.descriptionHtml,
           seo: {
-            title: seo.metaTitle,
-            description: seo.metaDescription,
+            title: generated.metaTitle,
+            description: generated.metaDescription,
           },
         },
       },
@@ -131,123 +136,136 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const errors = updateJson.data?.productUpdate?.userErrors || [];
 
   if (errors.length > 0) {
-    return { ok: false, error: errors.map((e: { message: string }) => e.message).join(", ") };
+    return {
+      ok: false as const,
+      error: errors.map((e: { message: string }) => e.message).join(", "),
+    };
   }
 
   return {
-    ok: true,
+    ok: true as const,
     product: updateJson.data?.productUpdate?.product,
-    seo,
+    generated,
   };
 };
 
 export default function Index() {
-  const { products, webUrl } = useLoaderData<typeof loader>();
+  const { products, aiConfigured } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
 
   const isLoading =
     ["loading", "submitting"].includes(fetcher.state) &&
     fetcher.formMethod === "POST";
+  const loadingProductId =
+    isLoading && fetcher.formData
+      ? String(fetcher.formData.get("productId") || "")
+      : "";
 
   useEffect(() => {
     if (fetcher.data?.ok) {
-      shopify.toast.show("SEO meta updated");
-    } else if (fetcher.data?.error) {
+      shopify.toast.show("Product optimized with AI");
+    } else if (fetcher.data && "error" in fetcher.data && fetcher.data.error) {
       shopify.toast.show(fetcher.data.error, { isError: true });
     }
   }, [fetcher.data, shopify]);
 
   return (
     <s-page heading="AI Commerce Suite">
-      <s-button slot="primary-action" href={webUrl} target="_blank">
-        Open full web app
-      </s-button>
-
-      <s-section heading="Optimize product SEO from Shopify Admin">
+      <s-section heading="AI product optimizer">
         <s-paragraph>
-          This embedded app lists products from your store. Use{" "}
-          <strong>Optimize SEO</strong> to write meta title and description
-          directly on the product. Full AI generation, bulk upload, and store
-          audit live in the web app.
+          Optimize your Shopify products directly in Admin — titles,
+          descriptions, and SEO meta. No external website required.
         </s-paragraph>
+        {!aiConfigured && (
+          <s-banner tone="warning">
+            Add <code>GEMINI_API_KEY</code> to <code>shopify-app/.env</code> for
+            full AI generation. Until then, a basic SEO fallback is used.
+          </s-banner>
+        )}
       </s-section>
 
-      <s-section heading="Recent products">
+      <s-section heading="Your products">
         {products.length === 0 ? (
           <s-paragraph>
-            No products found. Add a product in Shopify Admin, then refresh.
+            No products yet. Create a product in Shopify, then come back here.
           </s-paragraph>
         ) : (
           <s-stack direction="block" gap="base">
-            {products.map((product) => (
-              <s-box
-                key={product.id}
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <s-stack direction="block" gap="small">
-                  <s-heading>{product.title}</s-heading>
-                  <s-paragraph>
-                    Status: {product.status}
-                    {product.seo?.title ? ` · Meta: ${product.seo.title}` : " · No SEO title yet"}
-                  </s-paragraph>
-                  <s-stack direction="inline" gap="base">
-                    <fetcher.Form method="post">
-                      <input type="hidden" name="productId" value={product.id} />
+            {products.map((product) => {
+              const thisLoading = loadingProductId === product.id;
+              return (
+                <s-box
+                  key={product.id}
+                  padding="base"
+                  borderWidth="base"
+                  borderRadius="base"
+                  background="subdued"
+                >
+                  <s-stack direction="block" gap="small">
+                    <s-heading>{product.title}</s-heading>
+                    <s-paragraph>
+                      {product.status}
+                      {product.seo?.title
+                        ? ` · SEO: ${product.seo.title}`
+                        : " · No SEO title"}
+                    </s-paragraph>
+                    <s-stack direction="inline" gap="base">
+                      <fetcher.Form method="post">
+                        <input type="hidden" name="productId" value={product.id} />
+                        <s-button
+                          type="submit"
+                          variant="primary"
+                          {...(thisLoading ? { loading: true } : {})}
+                          {...(isLoading && !thisLoading ? { disabled: true } : {})}
+                        >
+                          Generate &amp; apply AI content
+                        </s-button>
+                      </fetcher.Form>
                       <s-button
-                        type="submit"
-                        {...(isLoading ? { loading: true } : {})}
+                        variant="tertiary"
+                        onClick={() => {
+                          shopify.intents.invoke?.("edit:shopify/Product", {
+                            value: product.id,
+                          });
+                        }}
                       >
-                        Optimize SEO
+                        Open product
                       </s-button>
-                    </fetcher.Form>
-                    <s-button
-                      variant="tertiary"
-                      onClick={() => {
-                        shopify.intents.invoke?.("edit:shopify/Product", {
-                          value: product.id,
-                        });
-                      }}
-                    >
-                      Edit in Shopify
-                    </s-button>
+                    </s-stack>
                   </s-stack>
-                </s-stack>
-              </s-box>
-            ))}
+                </s-box>
+              );
+            })}
           </s-stack>
         )}
       </s-section>
 
-      {fetcher.data?.ok && fetcher.data.seo && (
-        <s-section heading="Last optimization">
+      {fetcher.data?.ok && fetcher.data.generated && (
+        <s-section heading="Last result">
           <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
-            <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-              {JSON.stringify(fetcher.data.seo, null, 2)}
-            </pre>
+            <s-stack direction="block" gap="small">
+              <s-paragraph>
+                <strong>Title:</strong> {fetcher.data.generated.title}
+              </s-paragraph>
+              <s-paragraph>
+                <strong>Meta title:</strong> {fetcher.data.generated.metaTitle}
+              </s-paragraph>
+              <s-paragraph>
+                <strong>Meta description:</strong>{" "}
+                {fetcher.data.generated.metaDescription}
+              </s-paragraph>
+            </s-stack>
           </s-box>
         </s-section>
       )}
 
-      <s-section slot="aside" heading="What this app does">
+      <s-section slot="aside" heading="Runs inside Shopify">
         <s-unordered-list>
-          <s-list-item>Read products from your store</s-list-item>
-          <s-list-item>Write SEO title &amp; description</s-list-item>
-          <s-list-item>Ready for App Store embedding</s-list-item>
+          <s-list-item>Install once on your store</s-list-item>
+          <s-list-item>Generate AI copy in Admin</s-list-item>
+          <s-list-item>Writes title, description &amp; SEO</s-list-item>
         </s-unordered-list>
-      </s-section>
-
-      <s-section slot="aside" heading="Next">
-        <s-paragraph>
-          Connect this app to the Laravel AI API for full product copy
-          generation (titles, FAQs, schema, bulk).
-        </s-paragraph>
-        <s-link href={webUrl} target="_blank">
-          {webUrl}
-        </s-link>
       </s-section>
     </s-page>
   );

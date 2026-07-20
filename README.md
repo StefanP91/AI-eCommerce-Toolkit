@@ -40,7 +40,7 @@ Store scanning discovers product URLs from public sitemaps (including BigCommerc
 
 - **Backend:** Laravel 12, PHP 8.2+, Sanctum
 - **Frontend:** React, Vite, React Bootstrap
-- **Shopify app:** React Router embedded app (`shopify-app/`) for App Store install
+- **Shopify app:** Standalone embedded Admin app (`shopify-app/`) — AI optimize products without the website
 - **AI:** Google Gemini (default), OpenAI fallback
 - **Database:** SQLite (local) / PostgreSQL (production)
 
