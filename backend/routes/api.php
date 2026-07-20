@@ -82,6 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/support', [AdminController::class, 'supportRequests']);
             Route::patch('/support/{supportRequest}', [AdminController::class, 'updateSupportRequest']);
             Route::patch('/users/{user}', [AdminController::class, 'updateUser']);
+            Route::delete('/users/{user}', [AdminController::class, 'destroyUser']);
         });
     });
 });

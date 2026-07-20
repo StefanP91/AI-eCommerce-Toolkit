@@ -46,6 +46,7 @@ export default function Admin() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [savingId, setSavingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [closingSupportId, setClosingSupportId] = useState(null);
   const [drafts, setDrafts] = useState({});
 
@@ -113,6 +114,31 @@ export default function Admin() {
       setError(err.response?.data?.message || 'Failed to update user.');
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const handleDelete = async (targetUser) => {
+    if (targetUser.id === user.id) {
+      setError('Не можеш да го избришеш својот акаунт.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Избриши го корисникот "${targetUser.name}" (${targetUser.email})?\n\nОва ќе ги избрише и неговите производи, генерации и store податоци.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(targetUser.id);
+    setMessage('');
+    setError('');
+    try {
+      const res = await api.delete(`/admin/users/${targetUser.id}`);
+      setMessage(res.data.message || 'Корисникот е избришан.');
+      await loadData(meta.currentPage || 1, search);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Неуспешно бришење на корисник.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -376,14 +402,25 @@ export default function Admin() {
                     <td><small>{formatDateTime(u.last_login_at)}</small></td>
                     <td><small>{formatDate(u.created_at)}</small></td>
                     <td>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        disabled={!hasChanges(u) || savingId === u.id}
-                        onClick={() => handleSave(u)}
-                      >
-                        {savingId === u.id ? '...' : 'Зачувај'}
-                      </Button>
+                      <div className="d-flex gap-2 justify-content-end pe-2">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={!hasChanges(u) || savingId === u.id || deletingId === u.id}
+                          onClick={() => handleSave(u)}
+                        >
+                          {savingId === u.id ? '...' : 'Зачувај'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline-danger"
+                          disabled={u.id === user.id || deletingId === u.id || savingId === u.id}
+                          title={u.id === user.id ? 'Не можеш да се избришеш себеси' : 'Избриши корисник'}
+                          onClick={() => handleDelete(u)}
+                        >
+                          {deletingId === u.id ? '...' : 'Избриши'}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -131,4 +131,27 @@ class AdminController extends Controller
             'user' => $user->fresh()->loadCount(['products', 'generationHistories']),
         ]);
     }
+
+    public function destroyUser(Request $request, User $user): JsonResponse
+    {
+        $admin = $request->user();
+
+        if ($user->id === $admin->id) {
+            return response()->json(['message' => 'You cannot delete your own account.'], 422);
+        }
+
+        if ($user->isAdmin()) {
+            $adminCount = User::where('role', 'admin')->count();
+            if ($adminCount <= 1) {
+                return response()->json(['message' => 'At least one admin account must remain.'], 422);
+            }
+        }
+
+        $user->tokens()->delete();
+        $user->delete();
+
+        return response()->json([
+            'message' => 'User deleted successfully.',
+        ]);
+    }
 }
