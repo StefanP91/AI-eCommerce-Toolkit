@@ -3,28 +3,19 @@
   command = "npm run build"
   publish = "dist"
 
-# Serve crawl files as static assets (do not SPA-rewrite)
-[[redirects]]
-  from = "/sitemap.xml"
-  to = "/sitemap.xml"
-  status = 200
-  force = false
-
-[[redirects]]
-  from = "/robots.txt"
-  to = "/robots.txt"
-  status = 200
-  force = false
-
+# SPA fallback only — static files like /sitemap.xml and /robots.txt
+# are served first by Netlify when force is not set.
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+  force = false
 
 [[headers]]
   for = "/sitemap.xml"
   [headers.values]
     Content-Type = "application/xml; charset=utf-8"
+    X-Content-Type-Options = "nosniff"
     Cache-Control = "public, max-age=3600"
 
 [[headers]]
