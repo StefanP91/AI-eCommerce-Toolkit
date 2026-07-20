@@ -4,6 +4,7 @@ import { Row, Col, Card, Spinner, Badge, Button, Alert } from 'react-bootstrap';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { notifyCreditsUpdated } from '../utils/credits';
+import { trackPurchase } from '../utils/analytics';
 
 export default function Dashboard() {
   const { refreshUser } = useAuth();
@@ -25,6 +26,7 @@ export default function Dashboard() {
     setCheckoutMessage('Payment received. Activating Pro — this usually takes a few seconds.');
     searchParams.delete('checkout');
     setSearchParams(searchParams, { replace: true });
+    trackPurchase('pro', 19, 'USD');
 
     const refresh = async () => {
       try {

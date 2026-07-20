@@ -31,7 +31,7 @@ export default function LandingNavbar({ onOpenLogin, onOpenRegister }) {
           <Nav className="ms-auto align-items-lg-center gap-lg-2">
             <Nav.Link href="#before-after">Before & After</Nav.Link>
             <Nav.Link href="#features">Features</Nav.Link>
-            <Nav.Link href="#pricing">Pricing</Nav.Link>
+            <Nav.Link as={Link} to="/pricing">Pricing</Nav.Link>
             {user ? (
               <Button as={Link} to="/dashboard" variant="primary" size="sm" className="ms-lg-2">
                 Go to Dashboard

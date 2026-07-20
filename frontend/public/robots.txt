@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 Allow: /privacy
 Allow: /terms
+Allow: /pricing
 Allow: /login
 Allow: /register
 
@@ -20,7 +21,6 @@ Disallow: /projects
 Disallow: /history
 Disallow: /store
 Disallow: /support
-Disallow: /pricing
 Disallow: /forgot-password
 Disallow: /reset-password
 

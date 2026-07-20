@@ -59,6 +59,9 @@ export default function PrivacyPolicy() {
           <strong>Lemon Squeezy</strong> — payment processing and subscription management
         </li>
         <li>
+          <strong>Google Analytics</strong> — anonymized usage analytics (page views and conversion events)
+        </li>
+        <li>
           <strong>AI providers</strong> — content generation (Google Gemini, OpenAI)
         </li>
         <li>

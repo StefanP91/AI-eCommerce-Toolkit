@@ -4,6 +4,12 @@ import { Row, Col, Card, Button, Badge, Alert, ListGroup, Spinner } from 'react-
 import { useAuth } from '../context/AuthContext';
 import { PLANS } from '../constants/plans';
 import api from '../api/client';
+import PublicPageShell from '../components/PublicPageShell';
+import {
+  trackBeginCheckout,
+  trackPurchase,
+  trackUpgradeClick,
+} from '../utils/analytics';
 
 export default function Pricing() {
   const { user, refreshUser } = useAuth();
@@ -17,13 +23,16 @@ export default function Pricing() {
   const isPro = user?.plan === 'pro';
 
   useEffect(() => {
-    api.get('/credits').then((res) => setCredits(res.data)).catch(() => {});
-
-    if (user) {
-      api.get('/billing/status')
-        .then((res) => setBilling(res.data))
-        .catch(() => setBilling({ configured: false }));
+    if (!user) {
+      setCredits(null);
+      setBilling(null);
+      return;
     }
+
+    api.get('/credits').then((res) => setCredits(res.data)).catch(() => {});
+    api.get('/billing/status')
+      .then((res) => setBilling(res.data))
+      .catch(() => setBilling({ configured: false }));
   }, [user]);
 
   useEffect(() => {
@@ -33,6 +42,7 @@ export default function Pricing() {
     setSuccessMessage('Payment received. Activating Pro — this usually takes a few seconds.');
     searchParams.delete('checkout');
     setSearchParams(searchParams, { replace: true });
+    trackPurchase('pro', 19, 'USD');
 
     const refresh = async () => {
       try {
@@ -62,30 +72,15 @@ export default function Pricing() {
 
     searchParams.delete('checkout');
     setSearchParams(searchParams, { replace: true });
-
-    const autoStart = async () => {
-      setError('');
-      setCheckoutLoading(true);
-      try {
-        const res = await api.post('/billing/checkout');
-        if (res.data?.url) {
-          window.location.href = res.data.url;
-          return;
-        }
-        setError('Checkout URL was missing. Please try again.');
-      } catch (err) {
-        setError(err.response?.data?.message || 'Could not start checkout.');
-      } finally {
-        setCheckoutLoading(false);
-      }
-    };
-
-    void autoStart();
+    void startCheckout('pricing_auto');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, searchParams, setSearchParams]);
 
-  const startCheckout = async () => {
+  const startCheckout = async (source = 'pricing') => {
     setError('');
     setCheckoutLoading(true);
+    trackUpgradeClick(source);
+    trackBeginCheckout('pro', 19, 'USD');
     try {
       const res = await api.post('/billing/checkout');
       if (res.data?.url) {
@@ -120,9 +115,9 @@ export default function Pricing() {
   const billingReady = billing?.configured !== false;
 
   return (
-    <div>
+    <PublicPageShell>
       <div className="text-center mb-5">
-        <h3 className="mb-2">Choose Your Plan</h3>
+        <h1 className="h3 mb-2">Choose Your Plan</h1>
         <p className="text-muted mb-0">
           Scale your eCommerce content with AI — start free, upgrade when you need more.
         </p>
@@ -180,7 +175,7 @@ export default function Pricing() {
                 )}
                 <Card.Body className="p-4 d-flex flex-column">
                   <div className="mb-3">
-                    <h4 className="mb-1">{plan.name}</h4>
+                    <h2 className="h4 mb-1">{plan.name}</h2>
                     <p className="text-muted small mb-0">{plan.description}</p>
                   </div>
 
@@ -216,7 +211,11 @@ export default function Pricing() {
                     </Button>
                   ) : isProPlan ? (
                     !user ? (
-                      <Link to="/register?plan=pro" className="w-100">
+                      <Link
+                        to="/register?plan=pro"
+                        className="w-100"
+                        onClick={() => trackUpgradeClick('pricing_guest')}
+                      >
                         <Button variant="primary" className="w-100 pricing-upgrade-btn">
                           Sign up for Pro
                         </Button>
@@ -225,7 +224,7 @@ export default function Pricing() {
                       <Button
                         variant="primary"
                         className="w-100 pricing-upgrade-btn"
-                        onClick={startCheckout}
+                        onClick={() => startCheckout('pricing')}
                         disabled={checkoutLoading || billing?.configured === false}
                       >
                         {checkoutLoading ? (
@@ -240,6 +239,12 @@ export default function Pricing() {
                         )}
                       </Button>
                     )
+                  ) : !user ? (
+                    <Link to="/register?plan=free" className="w-100">
+                      <Button variant="outline-primary" className="w-100">
+                        Start Free
+                      </Button>
+                    </Link>
                   ) : (
                     <Button variant="outline-primary" disabled className="w-100">
                       Free Plan
@@ -288,12 +293,20 @@ export default function Pricing() {
         </Card.Body>
       </Card>
 
-      {!isPro && (
-        <p className="text-center text-muted small mt-4 mb-0">
-          Secure checkout powered by Lemon Squeezy.{' '}
-          <Link to="/settings">Manage your account</Link>
-        </p>
-      )}
-    </div>
+      <p className="text-center text-muted small mt-4 mb-0">
+        Secure checkout powered by Lemon Squeezy.
+        {user ? (
+          <>
+            {' '}
+            <Link to="/settings">Manage your account</Link>
+          </>
+        ) : (
+          <>
+            {' '}
+            <Link to="/register?plan=pro">Create a Pro account</Link>
+          </>
+        )}
+      </p>
+    </PublicPageShell>
   );
 }

@@ -2,6 +2,7 @@ const SITE = 'https://ai-ecommerce-suite.netlify.app';
 
 const PAGES = [
   { path: '/', changefreq: 'weekly', priority: '1.0' },
+  { path: '/pricing', changefreq: 'weekly', priority: '0.95' },
   { path: '/register', changefreq: 'monthly', priority: '0.9' },
   { path: '/login', changefreq: 'monthly', priority: '0.5' },
   { path: '/privacy', changefreq: 'yearly', priority: '0.3' },

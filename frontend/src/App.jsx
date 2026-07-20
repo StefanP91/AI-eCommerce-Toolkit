@@ -27,12 +27,14 @@ import Support from './pages/Support';
 import StoreOverview from './pages/StoreOverview';
 import Landing from './pages/Landing';
 import PageVisitTracker from './components/PageVisitTracker';
+import AnalyticsTracker from './components/AnalyticsTracker';
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <PageVisitTracker />
+        <AnalyticsTracker />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -40,6 +42,7 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/pricing" element={<Pricing />} />
           <Route path="/" element={<Landing />} />
 
           <Route element={<DashboardLayout />}>
@@ -58,7 +61,6 @@ export default function App() {
             <Route path="/history" element={<History />} />
             <Route path="/history/:id" element={<HistoryDetail />} />
             <Route path="/settings" element={<Settings />} />
-            <Route path="/pricing" element={<Pricing />} />
             <Route path="/support" element={<Support />} />
             <Route path="/admin" element={<Admin />} />
           </Route>

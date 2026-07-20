@@ -4,6 +4,7 @@ import { Card, Form, Button, Alert, ProgressBar, Badge } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { PLANS } from '../constants/plans';
 import api from '../api/client';
+import { trackBeginCheckout, trackUpgradeClick } from '../utils/analytics';
 
 export default function Settings() {
   const { user, setUser, refreshUser } = useAuth();
@@ -67,6 +68,8 @@ export default function Settings() {
   const startCheckout = async () => {
     setError('');
     setCheckoutLoading(true);
+    trackUpgradeClick('settings');
+    trackBeginCheckout('pro', 19, 'USD');
     try {
       const res = await api.post('/billing/checkout');
       if (res.data?.url) {

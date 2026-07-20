@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { PLANS } from '../../constants/plans';
 import BrandLogo from '../BrandLogo';
 import api from '../../api/client';
+import { trackBeginCheckout, trackSignUp } from '../../utils/analytics';
 
 export default function RegisterModal({ show, onHide, onSwitchToLogin, initialPlan = 'free' }) {
   const { register } = useAuth();
@@ -28,6 +29,7 @@ export default function RegisterModal({ show, onHide, onSwitchToLogin, initialPl
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const startProCheckout = async () => {
+    trackBeginCheckout('pro', 19, 'USD');
     const res = await api.post('/billing/checkout');
     if (!res.data?.url) {
       throw new Error('Checkout URL was missing.');
@@ -41,6 +43,7 @@ export default function RegisterModal({ show, onHide, onSwitchToLogin, initialPl
     setLoading(true);
     try {
       await register(form.name, form.email, form.password, form.password_confirmation, plan);
+      trackSignUp('email', plan);
       handleClose();
 
       if (plan === 'pro') {
