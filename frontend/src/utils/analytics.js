@@ -3,7 +3,10 @@
  * Set VITE_GA_MEASUREMENT_ID (e.g. G-XXXXXXXX) to enable.
  */
 
-const MEASUREMENT_ID = (import.meta.env.VITE_GA_MEASUREMENT_ID || '').trim();
+const MEASUREMENT_ID = (
+  import.meta.env.VITE_GA_MEASUREMENT_ID
+  || 'G-B3SG2DBW64'
+).trim();
 
 function canTrack() {
   return Boolean(MEASUREMENT_ID) && typeof window !== 'undefined';
