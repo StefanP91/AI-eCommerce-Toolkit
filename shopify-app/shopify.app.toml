@@ -1,0 +1,26 @@
+# Learn more: https://shopify.dev/docs/apps/tools/cli/configuration
+name = "AI Commerce Suite"
+client_id = ""
+application_url = "https://localhost"
+embedded = true
+
+[access_scopes]
+# Learn more: https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_products,write_products"
+
+[auth]
+redirect_urls = [ "https://localhost/auth/callback" ]
+
+[webhooks]
+api_version = "2025-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = ["app/uninstalled"]
+
+  [[webhooks.subscriptions]]
+  topics = ["app/scopes_update"]
+  uri = "/webhooks/app/scopes_update"
+
+[pos]
+embedded = false

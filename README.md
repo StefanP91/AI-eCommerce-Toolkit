@@ -40,48 +40,13 @@ Store scanning discovers product URLs from public sitemaps (including BigCommerc
 
 - **Backend:** Laravel 12, PHP 8.2+, Sanctum
 - **Frontend:** React, Vite, React Bootstrap
+- **Shopify app:** React Router embedded app (`shopify-app/`) for App Store install
 - **AI:** Google Gemini (default), OpenAI fallback
 - **Database:** SQLite (local) / PostgreSQL (production)
 
 ---
 
-## Quick start
 
-### Backend
-
-```bash
-cd backend
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate
-php artisan serve
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-cp .env.example .env
-npm run dev
-```
-
-Open `http://localhost:5173`. API runs at `http://localhost:8000`.
-
-### AI setup
-
-Add to `backend/.env`:
-
-```env
-AI_PROVIDER=gemini
-GEMINI_API_KEY=your-key-here
-GEMINI_MODEL=gemini-2.5-flash
-```
-
-
-
----
 
 ## Plans
 

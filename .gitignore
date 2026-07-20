@@ -16,6 +16,14 @@ frontend/.env
 node_modules/
 backend/vendor/
 frontend/node_modules/
+shopify-app/node_modules/
+
+# Shopify app local
+shopify-app/.env
+shopify-app/.shopify/
+shopify-app/prisma/*.db
+shopify-app/prisma/*.db-journal
+shopify-app/build/
 
 # Build output
 frontend/dist/
