@@ -1,17 +1,51 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Row, Col, Card, Spinner, Badge, Button } from 'react-bootstrap';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Row, Col, Card, Spinner, Badge, Button, Alert } from 'react-bootstrap';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { notifyCreditsUpdated } from '../utils/credits';
 
 export default function Dashboard() {
+  const { refreshUser } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [checkoutMessage, setCheckoutMessage] = useState('');
 
   useEffect(() => {
     api.get('/dashboard/stats')
       .then((res) => setStats(res.data))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const checkout = searchParams.get('checkout');
+    if (checkout !== 'success') return;
+
+    setCheckoutMessage('Payment received. Activating Pro — this usually takes a few seconds.');
+    searchParams.delete('checkout');
+    setSearchParams(searchParams, { replace: true });
+
+    const refresh = async () => {
+      try {
+        const [freshUser, statsRes] = await Promise.all([
+          refreshUser(),
+          api.get('/dashboard/stats'),
+        ]);
+        setStats(statsRes.data);
+        notifyCreditsUpdated();
+        if (freshUser?.plan === 'pro' || statsRes.data?.plan === 'pro') {
+          setCheckoutMessage('Welcome to Pro! Unlimited AI generations are unlocked.');
+        }
+      } catch {
+        // webhook may still be processing
+      }
+    };
+
+    refresh();
+    const timer = window.setTimeout(refresh, 2500);
+    return () => window.clearTimeout(timer);
+  }, [searchParams, setSearchParams, refreshUser]);
 
   if (loading) {
     return (
@@ -23,6 +57,17 @@ export default function Dashboard() {
 
   return (
     <div>
+      {checkoutMessage && (
+        <Alert
+          variant="success"
+          className="mb-4"
+          dismissible
+          onClose={() => setCheckoutMessage('')}
+        >
+          {checkoutMessage}
+        </Alert>
+      )}
+
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h3 className="mb-1">Dashboard</h3>

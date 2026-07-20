@@ -4,6 +4,7 @@ import { Modal, Form, Button, Alert, Badge } from 'react-bootstrap';
 import { useAuth } from '../../context/AuthContext';
 import { PLANS } from '../../constants/plans';
 import BrandLogo from '../BrandLogo';
+import api from '../../api/client';
 
 export default function RegisterModal({ show, onHide, onSwitchToLogin, initialPlan = 'free' }) {
   const { register } = useAuth();
@@ -26,6 +27,14 @@ export default function RegisterModal({ show, onHide, onSwitchToLogin, initialPl
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
+  const startProCheckout = async () => {
+    const res = await api.post('/billing/checkout');
+    if (!res.data?.url) {
+      throw new Error('Checkout URL was missing.');
+    }
+    window.location.href = res.data.url;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -33,7 +42,18 @@ export default function RegisterModal({ show, onHide, onSwitchToLogin, initialPl
     try {
       await register(form.name, form.email, form.password, form.password_confirmation, plan);
       handleClose();
-      navigate(plan === 'pro' ? '/pricing' : '/dashboard');
+
+      if (plan === 'pro') {
+        try {
+          await startProCheckout();
+          return;
+        } catch {
+          navigate('/pricing?checkout=start');
+          return;
+        }
+      }
+
+      navigate('/dashboard');
     } catch (err) {
       const errors = err.response?.data?.errors;
       if (errors) {
@@ -82,7 +102,7 @@ export default function RegisterModal({ show, onHide, onSwitchToLogin, initialPl
             </div>
             {plan === 'pro' && (
               <Form.Text className="text-muted">
-                After signup you&apos;ll go to Pricing to complete Pro checkout with Lemon Squeezy.
+                After signup you&apos;ll go straight to Lemon Squeezy checkout. When payment completes, you&apos;ll return to your dashboard.
               </Form.Text>
             )}
           </Form.Group>
@@ -114,7 +134,9 @@ export default function RegisterModal({ show, onHide, onSwitchToLogin, initialPl
           </Form.Group>
 
           <Button type="submit" variant="primary" className="w-100" disabled={loading}>
-            {loading ? 'Creating account...' : plan === 'pro' ? 'Create Pro Account' : 'Create Free Account'}
+            {loading
+              ? (plan === 'pro' ? 'Opening checkout...' : 'Creating account...')
+              : (plan === 'pro' ? 'Continue to Pro checkout' : 'Create Free Account')}
           </Button>
         </Form>
 

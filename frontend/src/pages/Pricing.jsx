@@ -56,6 +56,33 @@ export default function Pricing() {
     return () => window.clearTimeout(timer);
   }, [searchParams, setSearchParams, refreshUser]);
 
+  useEffect(() => {
+    if (!user || searchParams.get('checkout') !== 'start') return;
+    if (user.plan === 'pro') return;
+
+    searchParams.delete('checkout');
+    setSearchParams(searchParams, { replace: true });
+
+    const autoStart = async () => {
+      setError('');
+      setCheckoutLoading(true);
+      try {
+        const res = await api.post('/billing/checkout');
+        if (res.data?.url) {
+          window.location.href = res.data.url;
+          return;
+        }
+        setError('Checkout URL was missing. Please try again.');
+      } catch (err) {
+        setError(err.response?.data?.message || 'Could not start checkout.');
+      } finally {
+        setCheckoutLoading(false);
+      }
+    };
+
+    void autoStart();
+  }, [user, searchParams, setSearchParams]);
+
   const startCheckout = async () => {
     setError('');
     setCheckoutLoading(true);

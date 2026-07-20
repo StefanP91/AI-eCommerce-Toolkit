@@ -39,7 +39,7 @@ class LemonSqueezyService
                         ],
                     ],
                     'product_options' => [
-                        'redirect_url' => $frontend.'/pricing?checkout=success',
+                        'redirect_url' => $frontend.'/dashboard?checkout=success',
                     ],
                     'checkout_options' => [
                         'embed' => false,
