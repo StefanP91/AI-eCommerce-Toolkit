@@ -8,8 +8,20 @@ Allow: /register
 Disallow: /dashboard
 Disallow: /admin
 Disallow: /generator
+Disallow: /bulk-upload
+Disallow: /title-generator
+Disallow: /meta-generator
+Disallow: /seo-audit
+Disallow: /translator
+Disallow: /schema-generator
+Disallow: /image-optimizer
 Disallow: /settings
 Disallow: /projects
 Disallow: /history
+Disallow: /store
+Disallow: /support
+Disallow: /pricing
+Disallow: /forgot-password
+Disallow: /reset-password
 
 Sitemap: https://ai-ecommerce-suite.netlify.app/sitemap.xml
