@@ -2,28 +2,32 @@
   base = "frontend"
   command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"
 
-# SPA fallback only — static files like /sitemap.xml and /robots.txt
-# are served first by Netlify when force is not set.
+# Force sitemap through a function so Google never receives SPA HTML.
+[[redirects]]
+  from = "/sitemap.xml"
+  to = "/.netlify/functions/sitemap"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/sitemap.xml/"
+  to = "/.netlify/functions/sitemap"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/sitemap-pages.xml"
+  to = "/.netlify/functions/sitemap"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
   force = false
-
-[[headers]]
-  for = "/sitemap.xml"
-  [headers.values]
-    Content-Type = "application/xml; charset=utf-8"
-    X-Content-Type-Options = "nosniff"
-    Cache-Control = "public, max-age=3600"
-
-[[headers]]
-  for = "/sitemap-pages.xml"
-  [headers.values]
-    Content-Type = "application/xml; charset=utf-8"
-    X-Content-Type-Options = "nosniff"
-    Cache-Control = "public, max-age=3600"
 
 [[headers]]
   for = "/robots.txt"
