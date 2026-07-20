@@ -42,9 +42,7 @@ Store scanning discovers product URLs from public sitemaps (including BigCommerc
 - **Backend:** Laravel 12, PHP 8.2+, Sanctum
 - **Frontend:** React, Vite, React Bootstrap
 - **AI:** Google Gemini (default), OpenAI fallback
-- **Billing:** Lemon Squeezy (Pro subscription)
 - **Database:** SQLite (local) / PostgreSQL (production)
-- **Hosting:** Netlify (frontend) + Render (API)
 
 ---
 
@@ -80,37 +78,9 @@ Add to `backend/.env`:
 AI_PROVIDER=gemini
 GEMINI_API_KEY=your-key-here
 GEMINI_MODEL=gemini-2.5-flash
-FRONTEND_URL=http://localhost:5173
 ```
 
-Without an AI API key, the app runs in demo mode with sample content.
 
-### Billing (Lemon Squeezy)
-
-Required for live Pro checkout:
-
-```env
-LEMON_SQUEEZY_API_KEY=
-LEMON_SQUEEZY_STORE_ID=
-LEMON_SQUEEZY_VARIANT_ID=
-LEMON_SQUEEZY_WEBHOOK_SECRET=
-```
-
-Webhook URL (production):
-
-```text
-https://ai-commerce-api-suv3.onrender.com/api/billing/webhook
-```
-
-Subscribe to subscription events (`subscription_created`, `subscription_updated`, `subscription_cancelled`, `subscription_expired`, etc.).
-
-### Shopify push (optional)
-
-```env
-SHOPIFY_API_KEY=
-SHOPIFY_API_SECRET=
-SHOPIFY_SCOPES=read_products,write_products
-```
 
 ---
 
@@ -141,14 +111,6 @@ Pro signup opens Lemon Squeezy checkout, then returns to the dashboard after pay
 
 ---
 
-## Production notes
-
-- Frontend env: `VITE_API_URL=https://ai-commerce-api-suv3.onrender.com/api`
-- Backend env: `APP_URL`, `FRONTEND_URL`, Postgres `DATABASE_URL`, Lemon Squeezy + Shopify keys as needed
-- Public SEO files: `/robots.txt`, `/sitemap.xml` (served via Netlify function as `text/xml`)
-- Admin panel: manage users (plan, status, role, delete), support requests, visit analytics
-
----
 
 ## License
 
