@@ -1,8 +1,11 @@
 # AI Commerce Suite
 
-AI-powered toolkit for eCommerce sellers. Generate product copy, optimize SEO, translate listings, and export ready-to-use content in seconds.
+AI-powered toolkit for eCommerce sellers. Generate product copy, optimize SEO, translate listings, scan live stores, and export ready-to-use content in seconds.
 
-**Built for:** Shopify, WooCommerce, BigCommerce, and marketplace sellers who need faster product listings and better search visibility.
+**Live app:** [ai-ecommerce-suite.netlify.app](https://ai-ecommerce-suite.netlify.app)  
+**API:** [ai-commerce-api-suv3.onrender.com](https://ai-commerce-api-suv3.onrender.com)
+
+**Built for:** Shopify, WooCommerce, BigCommerce, Wix, Magento, Squarespace, PrestaShop, OpenCart, Square Online, and marketplace sellers.
 
 ---
 
@@ -17,8 +20,20 @@ AI-powered toolkit for eCommerce sellers. Generate product copy, optimize SEO, t
 | **Image Optimizer** | AI alt text, filename suggestions, compression, and SEO tips |
 | **Schema Generator** | JSON-LD Product schema for rich search results |
 | **Bulk Upload** | Process up to 100 products from CSV or Excel |
+| **Store Overview** (Pro) | Connect a store URL, auto-scan the public catalog, audit SEO scores, bulk fix, and publish |
 
-**Also includes:** saved projects, generation history, multi-format export (TXT, CSV, Excel, JSON), user accounts, admin panel, and Free / Pro plans.
+**Also includes:** saved projects, generation history, multi-format export (TXT, CSV, Excel, JSON), user accounts, admin panel, Free / Pro plans with Lemon Squeezy checkout.
+
+### Store platforms
+
+| Platform | Scan & audit | Guided publish setup | One-click API push |
+|----------|:------------:|:--------------------:|:------------------:|
+| Shopify | ✓ | ✓ | ✓ (Admin API / OAuth) |
+| WooCommerce | ✓ | ✓ (REST keys) | — |
+| BigCommerce | ✓ | ✓ | — |
+| Wix, Magento, Squarespace, PrestaShop, OpenCart, Square | ✓ | ✓ | — |
+
+Store scanning discovers product URLs from public sitemaps (including BigCommerce `/xmlsitemap.php`) and audits pages in batches with a live progress bar and ETA.
 
 ---
 
@@ -27,13 +42,16 @@ AI-powered toolkit for eCommerce sellers. Generate product copy, optimize SEO, t
 - **Backend:** Laravel 12, PHP 8.2+, Sanctum
 - **Frontend:** React, Vite, React Bootstrap
 - **AI:** Google Gemini (default), OpenAI fallback
+- **Billing:** Lemon Squeezy (Pro subscription)
 - **Database:** SQLite (local) / PostgreSQL (production)
+- **Hosting:** Netlify (frontend) + Render (API)
 
 ---
 
 ## Quick start
 
-**Backend**
+### Backend
+
 ```bash
 cd backend
 composer install
@@ -43,7 +61,8 @@ php artisan migrate
 php artisan serve
 ```
 
-**Frontend**
+### Frontend
+
 ```bash
 cd frontend
 npm install
@@ -53,36 +72,81 @@ npm run dev
 
 Open `http://localhost:5173`. API runs at `http://localhost:8000`.
 
-**AI setup** — add to `backend/.env`:
+### AI setup
+
+Add to `backend/.env`:
+
 ```env
 AI_PROVIDER=gemini
 GEMINI_API_KEY=your-key-here
 GEMINI_MODEL=gemini-2.5-flash
+FRONTEND_URL=http://localhost:5173
 ```
 
-Without an API key, the app runs in demo mode with sample content.
+Without an AI API key, the app runs in demo mode with sample content.
+
+### Billing (Lemon Squeezy)
+
+Required for live Pro checkout:
+
+```env
+LEMON_SQUEEZY_API_KEY=
+LEMON_SQUEEZY_STORE_ID=
+LEMON_SQUEEZY_VARIANT_ID=
+LEMON_SQUEEZY_WEBHOOK_SECRET=
+```
+
+Webhook URL (production):
+
+```text
+https://ai-commerce-api-suv3.onrender.com/api/billing/webhook
+```
+
+Subscribe to subscription events (`subscription_created`, `subscription_updated`, `subscription_cancelled`, `subscription_expired`, etc.).
+
+### Shopify push (optional)
+
+```env
+SHOPIFY_API_KEY=
+SHOPIFY_API_SECRET=
+SHOPIFY_SCOPES=read_products,write_products
+```
 
 ---
 
 ## Plans
 
-| | Free | Pro |
+| | Free | Pro ($19/mo) |
 |---|:---:|:---:|
 | AI generations / day | 20 | Unlimited |
 | Products / month | 50 | Unlimited |
-| All tools | ✓ | ✓ |
+| All content tools | ✓ | ✓ |
 | Bulk upload (100 rows) | ✓ | ✓ |
+| Store connect & SEO scan | — | ✓ |
+| Shopify one-click push | — | ✓ |
 | Priority support | — | ✓ |
+
+Pro signup opens Lemon Squeezy checkout, then returns to the dashboard after payment.
 
 ---
 
 ## Project structure
 
-```
-├── backend/    Laravel API
-├── frontend/   React SPA
+```text
+├── backend/     Laravel API (Render)
+├── frontend/    React SPA (Netlify)
+├── netlify.toml Sitemap + SPA routing
 └── README.md
 ```
+
+---
+
+## Production notes
+
+- Frontend env: `VITE_API_URL=https://ai-commerce-api-suv3.onrender.com/api`
+- Backend env: `APP_URL`, `FRONTEND_URL`, Postgres `DATABASE_URL`, Lemon Squeezy + Shopify keys as needed
+- Public SEO files: `/robots.txt`, `/sitemap.xml` (served via Netlify function as `text/xml`)
+- Admin panel: manage users (plan, status, role, delete), support requests, visit analytics
 
 ---
 
