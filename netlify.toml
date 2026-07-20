@@ -4,6 +4,9 @@
   publish = "dist"
   functions = "netlify/functions"
 
+# Redirects for sitemap are in public/_redirects (with ! force).
+# Keep SPA fallback here as well for environments that only read toml.
+
 [[redirects]]
   from = "/sitemap.xml"
   to = "/.netlify/functions/sitemap"
