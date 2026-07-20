@@ -24,12 +24,13 @@ ${urls}
 `;
 }
 
-export default async () => ({
-  statusCode: 200,
-  headers: {
-    'Content-Type': 'text/xml; charset=utf-8',
-    'Cache-Control': 'public, max-age=3600',
-    'X-Robots-Tag': 'noindex',
-  },
-  body: buildSitemapXml(),
-});
+export async function handler() {
+  return {
+    statusCode: 200,
+    headers: {
+      'Content-Type': 'text/xml; charset=utf-8',
+      'Cache-Control': 'public, max-age=300',
+    },
+    body: buildSitemapXml(),
+  };
+}

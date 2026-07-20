@@ -4,7 +4,6 @@
   publish = "dist"
   functions = "netlify/functions"
 
-# Force sitemap through a function so Google never receives SPA HTML.
 [[redirects]]
   from = "/sitemap.xml"
   to = "/.netlify/functions/sitemap"
