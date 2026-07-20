@@ -25,3 +25,4 @@ Disallow: /forgot-password
 Disallow: /reset-password
 
 Sitemap: https://ai-ecommerce-suite.netlify.app/sitemap.xml
+Sitemap: https://ai-ecommerce-suite.netlify.app/sitemap-pages.xml
