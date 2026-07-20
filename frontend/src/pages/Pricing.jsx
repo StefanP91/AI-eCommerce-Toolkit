@@ -1,18 +1,96 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Row, Col, Card, Button, Badge, Alert, ListGroup } from 'react-bootstrap';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Row, Col, Card, Button, Badge, Alert, ListGroup, Spinner } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { PLANS } from '../constants/plans';
 import api from '../api/client';
 
 export default function Pricing() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [credits, setCredits] = useState(null);
+  const [billing, setBilling] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const isPro = user?.plan === 'pro';
 
   useEffect(() => {
     api.get('/credits').then((res) => setCredits(res.data)).catch(() => {});
-  }, []);
+
+    if (user) {
+      api.get('/billing/status')
+        .then((res) => setBilling(res.data))
+        .catch(() => setBilling({ configured: false }));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const checkout = searchParams.get('checkout');
+    if (checkout !== 'success') return;
+
+    setSuccessMessage('Payment received. Activating Pro — this usually takes a few seconds.');
+    searchParams.delete('checkout');
+    setSearchParams(searchParams, { replace: true });
+
+    const refresh = async () => {
+      try {
+        await refreshUser?.();
+        const [creditsRes, billingRes] = await Promise.all([
+          api.get('/credits'),
+          api.get('/billing/status'),
+        ]);
+        setCredits(creditsRes.data);
+        setBilling(billingRes.data);
+        if (billingRes.data?.plan === 'pro') {
+          setSuccessMessage('Welcome to Pro! Unlimited AI generations are unlocked.');
+        }
+      } catch {
+        // webhook may still be processing
+      }
+    };
+
+    refresh();
+    const timer = window.setTimeout(refresh, 2500);
+    return () => window.clearTimeout(timer);
+  }, [searchParams, setSearchParams, refreshUser]);
+
+  const startCheckout = async () => {
+    setError('');
+    setCheckoutLoading(true);
+    try {
+      const res = await api.post('/billing/checkout');
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+        return;
+      }
+      setError('Checkout URL was missing. Please try again.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not start checkout.');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  const openPortal = async () => {
+    setError('');
+    setPortalLoading(true);
+    try {
+      const res = await api.post('/billing/portal');
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+        return;
+      }
+      setError('Billing portal is not available yet.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not open billing portal.');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  const billingReady = billing?.configured !== false;
 
   return (
     <div>
@@ -23,9 +101,34 @@ export default function Pricing() {
         </p>
       </div>
 
+      {successMessage && (
+        <Alert variant="success" className="text-center mb-4" onClose={() => setSuccessMessage('')} dismissible>
+          {successMessage}
+        </Alert>
+      )}
+
+      {error && (
+        <Alert variant="danger" className="text-center mb-4" onClose={() => setError('')} dismissible>
+          {error}
+        </Alert>
+      )}
+
       {isPro && (
         <Alert variant="success" className="text-center mb-4">
           You&apos;re on <strong>Pro</strong> — enjoy unlimited AI generations and products.
+          {billing?.has_subscription && (
+            <>
+              {' '}
+              <Button
+                variant="link"
+                className="p-0 align-baseline"
+                onClick={openPortal}
+                disabled={portalLoading}
+              >
+                {portalLoading ? 'Opening…' : 'Manage billing'}
+              </Button>
+            </>
+          )}
         </Alert>
       )}
 
@@ -85,9 +188,31 @@ export default function Pricing() {
                       Current Plan
                     </Button>
                   ) : isProPlan ? (
-                    <Button variant="primary" className="w-100 pricing-upgrade-btn" disabled>
-                      Upgrade to Pro — Coming Soon
-                    </Button>
+                    !user ? (
+                      <Link to="/register?plan=pro" className="w-100">
+                        <Button variant="primary" className="w-100 pricing-upgrade-btn">
+                          Sign up for Pro
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button
+                        variant="primary"
+                        className="w-100 pricing-upgrade-btn"
+                        onClick={startCheckout}
+                        disabled={checkoutLoading || billing?.configured === false}
+                      >
+                        {checkoutLoading ? (
+                          <>
+                            <Spinner animation="border" size="sm" className="me-2" />
+                            Redirecting…
+                          </>
+                        ) : billingReady ? (
+                          'Upgrade to Pro — $19/mo'
+                        ) : (
+                          'Billing not configured'
+                        )}
+                      </Button>
+                    )
                   ) : (
                     <Button variant="outline-primary" disabled className="w-100">
                       Free Plan
@@ -138,7 +263,7 @@ export default function Pricing() {
 
       {!isPro && (
         <p className="text-center text-muted small mt-4 mb-0">
-          Stripe checkout will be available in the next update.{' '}
+          Secure checkout powered by Lemon Squeezy.{' '}
           <Link to="/settings">Manage your account</Link>
         </p>
       )}

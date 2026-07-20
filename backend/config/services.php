@@ -56,4 +56,11 @@ return [
         'redirect_uri' => env('SHOPIFY_REDIRECT_URI', rtrim((string) env('APP_URL', 'http://localhost:8000'), '/').'/api/auth/shopify/callback'),
     ],
 
+    'lemon_squeezy' => [
+        'api_key' => env('LEMON_SQUEEZY_API_KEY'),
+        'store_id' => env('LEMON_SQUEEZY_STORE_ID'),
+        'variant_id' => env('LEMON_SQUEEZY_VARIANT_ID'),
+        'webhook_secret' => env('LEMON_SQUEEZY_WEBHOOK_SECRET'),
+    ],
+
 ];

@@ -21,6 +21,7 @@ Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::post('/analytics/visit', [AnalyticsController::class, 'track']);
 Route::get('/auth/shopify/callback', [ShopifyAuthController::class, 'callback']);
+Route::post('/billing/webhook', [\App\Http\Controllers\Api\BillingController::class, 'webhook']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -30,6 +31,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
     Route::get('/credits', [CreditsController::class, 'show']);
+
+    Route::get('/billing/status', [\App\Http\Controllers\Api\BillingController::class, 'status']);
+    Route::post('/billing/checkout', [\App\Http\Controllers\Api\BillingController::class, 'checkout']);
+    Route::post('/billing/portal', [\App\Http\Controllers\Api\BillingController::class, 'portal']);
 
     Route::post('/products/generate', [ProductController::class, 'generate']);
     Route::post('/products', [ProductController::class, 'store']);

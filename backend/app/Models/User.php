@@ -27,6 +27,10 @@ class User extends Authenticatable
         'plan',
         'role',
         'status',
+        'lemon_squeezy_customer_id',
+        'lemon_squeezy_subscription_id',
+        'subscription_status',
+        'subscription_ends_at',
         'ai_generations_today',
         'ai_generations_date',
         'last_login_at',
@@ -52,6 +56,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'subscription_ends_at' => 'datetime',
             'password' => 'hashed',
             'ai_generations_date' => 'date',
         ];

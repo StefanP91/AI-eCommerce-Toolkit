@@ -18,6 +18,8 @@ export default function Settings() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const planKey = credits?.plan ?? user?.plan ?? 'free';
   const isPro = planKey === 'pro';
@@ -44,6 +46,40 @@ export default function Settings() {
   }, [refreshUser]);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const openPortal = async () => {
+    setError('');
+    setPortalLoading(true);
+    try {
+      const res = await api.post('/billing/portal');
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+        return;
+      }
+      setError('Billing portal is not available yet.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not open billing portal.');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  const startCheckout = async () => {
+    setError('');
+    setCheckoutLoading(true);
+    try {
+      const res = await api.post('/billing/checkout');
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+        return;
+      }
+      setError('Checkout URL was missing. Please try again.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not start checkout.');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -100,9 +136,19 @@ export default function Settings() {
             <p className="text-muted small mb-3">{plan.description}</p>
 
             {isPro ? (
-              <Alert variant="success" className="mb-0 py-2">
-                You have unlimited AI generations and saved products.
-              </Alert>
+              <>
+                <Alert variant="success" className="mb-3 py-2">
+                  You have unlimited AI generations and saved products.
+                </Alert>
+                <div className="d-flex flex-wrap gap-2">
+                  <Button variant="outline-primary" size="sm" onClick={openPortal} disabled={portalLoading}>
+                    {portalLoading ? 'Opening…' : 'Manage billing'}
+                  </Button>
+                  <Link to="/pricing">
+                    <Button variant="outline-secondary" size="sm">View plans</Button>
+                  </Link>
+                </div>
+              </>
             ) : credits && (
               <>
                 <div className="mb-3">
@@ -121,9 +167,9 @@ export default function Settings() {
                   </div>
                   <ProgressBar now={monthlyPct} variant={monthlyPct >= 90 ? 'warning' : 'info'} style={{ height: 6 }} />
                 </div>
-                <Link to="/pricing">
-                  <Button variant="primary" size="sm">Upgrade to Pro — $19/mo</Button>
-                </Link>
+                <Button variant="primary" size="sm" onClick={startCheckout} disabled={checkoutLoading}>
+                  {checkoutLoading ? 'Redirecting…' : 'Upgrade to Pro — $19/mo'}
+                </Button>
               </>
             )}
           </Card.Body>

@@ -82,7 +82,7 @@ export default function RegisterModal({ show, onHide, onSwitchToLogin, initialPl
             </div>
             {plan === 'pro' && (
               <Form.Text className="text-muted">
-                Pro checkout is coming soon. Your account starts on Free until billing is enabled.
+                After signup you&apos;ll go to Pricing to complete Pro checkout with Lemon Squeezy.
               </Form.Text>
             )}
           </Form.Group>
