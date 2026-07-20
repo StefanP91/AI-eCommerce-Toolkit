@@ -3,7 +3,6 @@
 AI-powered toolkit for eCommerce sellers. Generate product copy, optimize SEO, translate listings, scan live stores, and export ready-to-use content in seconds.
 
 **Live app:** [ai-ecommerce-suite.netlify.app](https://ai-ecommerce-suite.netlify.app)  
-**API:** [ai-commerce-api-suv3.onrender.com](https://ai-commerce-api-suv3.onrender.com)
 
 **Built for:** Shopify, WooCommerce, BigCommerce, Wix, Magento, Squarespace, PrestaShop, OpenCart, Square Online, and marketplace sellers.
 
