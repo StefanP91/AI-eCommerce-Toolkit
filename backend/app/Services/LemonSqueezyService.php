@@ -13,8 +13,8 @@ class LemonSqueezyService
     public function isConfigured(): bool
     {
         return filled(config('services.lemon_squeezy.api_key'))
-            && filled(config('services.lemon_squeezy.store_id'))
-            && filled(config('services.lemon_squeezy.variant_id'));
+            && filled($this->storeId())
+            && filled($this->variantId());
     }
 
     public function createCheckout(User $user): array
@@ -24,6 +24,8 @@ class LemonSqueezyService
         }
 
         $frontend = rtrim((string) config('app.frontend_url', env('FRONTEND_URL', 'http://localhost:5173')), '/');
+        $storeId = $this->storeId();
+        $variantId = $this->variantId();
 
         $payload = [
             'data' => [
@@ -49,13 +51,13 @@ class LemonSqueezyService
                     'store' => [
                         'data' => [
                             'type' => 'stores',
-                            'id' => (string) config('services.lemon_squeezy.store_id'),
+                            'id' => $storeId,
                         ],
                     ],
                     'variant' => [
                         'data' => [
                             'type' => 'variants',
-                            'id' => (string) config('services.lemon_squeezy.variant_id'),
+                            'id' => $variantId,
                         ],
                     ],
                 ],
@@ -127,5 +129,15 @@ class LemonSqueezyService
         $digest = hash_hmac('sha256', $payload, $secret);
 
         return hash_equals($digest, $signature);
+    }
+
+    private function storeId(): string
+    {
+        return preg_replace('/\D+/', '', (string) config('services.lemon_squeezy.store_id')) ?: '';
+    }
+
+    private function variantId(): string
+    {
+        return preg_replace('/\D+/', '', (string) config('services.lemon_squeezy.variant_id')) ?: '';
     }
 }
