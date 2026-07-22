@@ -14,12 +14,35 @@ export type ProductNode = {
   };
 };
 
-export function buildProductsUrl(options: { page?: number; q?: string } = {}) {
+export type ProductSort = "updated" | "seo_desc" | "seo_asc";
+
+export const PRODUCT_SORT_OPTIONS: Array<{
+  value: ProductSort;
+  label: string;
+}> = [
+  { value: "updated", label: "Recently updated" },
+  { value: "seo_desc", label: "SEO score: High to Low" },
+  { value: "seo_asc", label: "SEO score: Low to High" },
+];
+
+export function parseProductSort(value: string | null): ProductSort {
+  if (value === "seo_desc" || value === "seo_asc") {
+    return value;
+  }
+  return "updated";
+}
+
+export function buildProductsUrl(
+  options: { page?: number; q?: string; sort?: ProductSort } = {},
+) {
   const params = new URLSearchParams();
   const query = options.q?.trim();
 
   if (query) {
     params.set("q", query);
+  }
+  if (options.sort && options.sort !== "updated") {
+    params.set("sort", options.sort);
   }
   if (options.page && options.page > 1) {
     params.set("page", String(options.page));

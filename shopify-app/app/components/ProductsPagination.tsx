@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { buildProductsUrl } from "../lib/products";
+import { buildProductsUrl, type ProductSort } from "../lib/products";
 
 export function ProductsPagination({
   page,
@@ -9,6 +9,7 @@ export function ProductsPagination({
   hasPreviousPage,
   hasNextPage,
   search,
+  sort,
 }: {
   page: number;
   totalPages: number;
@@ -17,6 +18,7 @@ export function ProductsPagination({
   hasPreviousPage: boolean;
   hasNextPage: boolean;
   search: string;
+  sort: ProductSort;
 }) {
   if (totalCount === 0) {
     return null;
@@ -36,7 +38,7 @@ export function ProductsPagination({
         <nav className="dashboard-pagination" aria-label="Products pagination">
           {hasPreviousPage ? (
             <Link
-              to={buildProductsUrl({ page: page - 1, q: search })}
+              to={buildProductsUrl({ page: page - 1, q: search, sort })}
               className="dashboard-btn dashboard-btn-ghost"
             >
               Previous
@@ -53,7 +55,7 @@ export function ProductsPagination({
 
           {hasNextPage ? (
             <Link
-              to={buildProductsUrl({ page: page + 1, q: search })}
+              to={buildProductsUrl({ page: page + 1, q: search, sort })}
               className="dashboard-btn dashboard-btn-ghost"
             >
               Next

@@ -1,4 +1,5 @@
-import type { ProductNode } from "./products";
+import type { ProductNode, ProductSort } from "./products";
+import { scoreProduct } from "./products";
 
 export const PRODUCTS_PAGE_SIZE = 25;
 
@@ -112,15 +113,86 @@ export type ProductsPageResult = {
   hasNextPage: boolean;
   hasPreviousPage: boolean;
   search: string;
+  sort: ProductSort;
 };
+
+async function fetchAllProducts(
+  admin: ShopifyAdmin,
+  search: string,
+): Promise<ProductNode[]> {
+  const allProducts: ProductNode[] = [];
+  let cursor: string | null = null;
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const batch = await fetchProductBatch(admin, 250, cursor, search);
+    allProducts.push(...batch.products);
+    hasNextPage = batch.pageInfo.hasNextPage;
+    cursor = batch.pageInfo.endCursor;
+  }
+
+  return allProducts;
+}
+
+function sortProducts(
+  products: ProductNode[],
+  sort: ProductSort,
+): ProductNode[] {
+  if (sort === "updated") {
+    return products;
+  }
+
+  const sorted = [...products];
+
+  if (sort === "seo_desc") {
+    sorted.sort(
+      (a, b) =>
+        scoreProduct(b) - scoreProduct(a) ||
+        a.title.localeCompare(b.title, undefined, { sensitivity: "base" }),
+    );
+  } else {
+    sorted.sort(
+      (a, b) =>
+        scoreProduct(a) - scoreProduct(b) ||
+        a.title.localeCompare(b.title, undefined, { sensitivity: "base" }),
+    );
+  }
+
+  return sorted;
+}
 
 export async function fetchProductsPage(
   admin: ShopifyAdmin,
   page: number,
   search = "",
+  sort: ProductSort = "updated",
 ): Promise<ProductsPageResult> {
   const pageSize = PRODUCTS_PAGE_SIZE;
   const normalizedSearch = search.trim();
+
+  if (sort !== "updated") {
+    const allProducts = sortProducts(
+      await fetchAllProducts(admin, normalizedSearch),
+      sort,
+    );
+    const totalCount = allProducts.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const targetPage = Math.min(Math.max(1, page), totalPages);
+    const start = (targetPage - 1) * pageSize;
+
+    return {
+      products: allProducts.slice(start, start + pageSize),
+      page: targetPage,
+      pageSize,
+      totalCount,
+      totalPages,
+      hasNextPage: targetPage < totalPages,
+      hasPreviousPage: targetPage > 1,
+      search: normalizedSearch,
+      sort,
+    };
+  }
+
   const totalCount = await fetchProductsCount(admin, normalizedSearch);
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const targetPage = Math.min(Math.max(1, page), totalPages);
@@ -155,6 +227,7 @@ export async function fetchProductsPage(
     hasNextPage: result.pageInfo.hasNextPage,
     hasPreviousPage: targetPage > 1,
     search: normalizedSearch,
+    sort,
   };
 }
 
