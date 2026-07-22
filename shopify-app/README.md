@@ -39,7 +39,7 @@ Branding files are in `public/branding/`:
 
 | File | Use |
 |------|-----|
-| `app-icon-1200.png` | Upload in Partner / Dev Dashboard (App settings → icon, **1200×1200**) |
+| `app-icon-1200.png` | Upload in Partner / Dev Dashboard (App settings → icon, **1200×1200**, max **1MB**) |
 | `app-icon-1024.png` | Older size (do not use for Shopify upload) |
 | `app-icon.svg` | Source vector |
 | `nav-icon.svg` | Optional embedded nav icon (Partner → App setup → Embedded app) |
