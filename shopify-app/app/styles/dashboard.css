@@ -1,3 +1,134 @@
+.dashboard-tools-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-tools-preview-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--dash-border);
+}
+
+.dashboard-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 180px;
+  flex: 1;
+}
+
+.dashboard-field span {
+  color: var(--dash-muted);
+  font-size: 0.8rem;
+}
+
+.dashboard-tabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+
+.dashboard-tab {
+  border: 1px solid var(--dash-border);
+  background: transparent;
+  color: var(--dash-muted);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.dashboard-tab.is-active {
+  background: rgba(134, 59, 255, 0.18);
+  border-color: rgba(134, 59, 255, 0.55);
+  color: #fff;
+}
+
+.dashboard-tools-help {
+  color: var(--dash-muted);
+  font-size: 0.88rem;
+  margin: 0 0 1rem;
+}
+
+.dashboard-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.dashboard-tools-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.dashboard-tools-result {
+  border-top: 1px solid var(--dash-border);
+  padding-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.dashboard-tools-html {
+  color: var(--dash-muted);
+  font-size: 0.88rem;
+  max-height: 180px;
+  overflow: auto;
+  padding: 0.7rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--dash-border);
+}
+
+.dashboard-title-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.dashboard-title-option {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--dash-border);
+  cursor: pointer;
+}
+
+.dashboard-title-option:has(input:checked) {
+  border-color: rgba(134, 59, 255, 0.55);
+  background: rgba(134, 59, 255, 0.1);
+}
+
+.dashboard-schema-code {
+  margin: 0;
+  padding: 0.85rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--dash-border);
+  overflow: auto;
+  max-height: 360px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #d7e2f5;
+}
+
+@media (max-width: 860px) {
+  .dashboard-tools-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .dashboard-root {
   --dash-bg: #070d1a;
   --dash-panel: #0f1a2e;
