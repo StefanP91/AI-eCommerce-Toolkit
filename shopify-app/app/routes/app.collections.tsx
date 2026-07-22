@@ -12,6 +12,8 @@ import {
   fetchCollections,
   optimizeCollectionById,
 } from "../lib/collections.server";
+import { BulkProgressBar } from "../components/BulkProgressBar";
+import { useSequentialBulk } from "../hooks/useSequentialBulk";
 
 export const MAX_BULK_COLLECTIONS = 20;
 
@@ -95,14 +97,36 @@ export default function CollectionsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const lastToastKey = useRef<string | null>(null);
 
+  const { progress: bulkProgress, startBulk, isBulkRunning } = useSequentialBulk({
+    fetcher,
+    bulkIntents: ["bulk"],
+    onComplete: ({ succeeded, failed, total }) => {
+      if (succeeded > 0) {
+        shopify.toast.show(
+          failed > 0
+            ? `Optimized ${succeeded}/${total} collections, ${failed} failed`
+            : succeeded === 1
+              ? "Optimized 1 collection"
+              : `Optimized ${succeeded} collections`,
+        );
+        setSelectedIds([]);
+        revalidator.revalidate();
+      } else {
+        shopify.toast.show("Collection bulk optimize failed", { isError: true });
+      }
+    },
+  });
+
   const isBusy =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
+    isBulkRunning ||
+    (["loading", "submitting"].includes(fetcher.state) &&
+      fetcher.formMethod === "POST");
   const loadingId =
-    isBusy && fetcher.formData?.get("intent") === "single"
+    !isBulkRunning &&
+    isBusy &&
+    fetcher.formData?.get("intent") === "single"
       ? String(fetcher.formData.get("collectionId") || "")
       : "";
-  const isBulkRunning = isBusy && fetcher.formData?.get("intent") === "bulk";
 
   const collectionIdsKey = collections.map((item) => item.id).join("|");
 
@@ -111,27 +135,13 @@ export default function CollectionsPage() {
   }, [search, collectionIdsKey]);
 
   useEffect(() => {
+    if (isBulkRunning) return;
     if (!fetcher.data || fetcher.state !== "idle") return;
     const toastKey = JSON.stringify(fetcher.data);
     if (lastToastKey.current === toastKey) return;
     lastToastKey.current = toastKey;
 
     if (fetcher.data.intent === "bulk") {
-      const succeeded = fetcher.data.succeeded ?? 0;
-      const failed = fetcher.data.failed ?? 0;
-      if (succeeded > 0) {
-        shopify.toast.show(
-          failed > 0
-            ? `Optimized ${succeeded} collections. ${failed} failed.`
-            : succeeded === 1
-              ? "Optimized 1 collection"
-              : `Optimized ${succeeded} collections`,
-        );
-        setSelectedIds([]);
-        revalidator.revalidate();
-      } else if (fetcher.data.error) {
-        shopify.toast.show(fetcher.data.error, { isError: true });
-      }
       return;
     }
 
@@ -145,7 +155,7 @@ export default function CollectionsPage() {
     } else if (fetcher.data.error) {
       shopify.toast.show(fetcher.data.error, { isError: true });
     }
-  }, [fetcher.data, fetcher.state, shopify, revalidator]);
+  }, [fetcher.data, fetcher.state, shopify, revalidator, isBulkRunning]);
 
   const toggleSelected = (id: string) => {
     setSelectedIds((current) => {
@@ -172,12 +182,16 @@ export default function CollectionsPage() {
       shopify.toast.show("Select at least one collection", { isError: true });
       return;
     }
-    const formData = new FormData();
-    formData.set("intent", "bulk");
-    for (const id of selectedIds.slice(0, maxBulk)) {
-      formData.append("collectionIds", id);
-    }
-    fetcher.submit(formData, { method: "post" });
+    startBulk({
+      ids: selectedIds.slice(0, maxBulk),
+      label: "Bulk optimize",
+      buildFormData: (collectionId) => {
+        const formData = new FormData();
+        formData.set("intent", "bulk");
+        formData.append("collectionIds", collectionId);
+        return formData;
+      },
+    });
   };
 
   return (
@@ -251,11 +265,13 @@ export default function CollectionsPage() {
             onClick={runBulk}
           >
             {isBulkRunning
-              ? `Optimizing ${selectedIds.length}...`
+              ? `${bulkProgress?.percent ?? 0}%`
               : `Bulk optimize (${selectedIds.length || 0})`}
           </button>
         </div>
       )}
+
+      {bulkProgress && <BulkProgressBar {...bulkProgress} />}
 
       <div className="dashboard-products">
         {collections.length === 0 ? (

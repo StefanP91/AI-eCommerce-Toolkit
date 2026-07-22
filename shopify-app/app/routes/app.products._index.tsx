@@ -21,6 +21,8 @@ import { ProductsPagination } from "../components/ProductsPagination";
 import { ProductsSearch } from "../components/ProductsSearch";
 import { ProductsSort } from "../components/ProductsSort";
 import { ProductsFilter } from "../components/ProductsFilter";
+import { BulkProgressBar } from "../components/BulkProgressBar";
+import { useSequentialBulk } from "../hooks/useSequentialBulk";
 
 export const MAX_BULK_OPTIMIZE = 20;
 
@@ -162,20 +164,35 @@ export default function ProductsPage() {
     setSelectedIds([]);
   }, [productIdsKey]);
 
+  const { progress: bulkProgress, startBulk, isBulkRunning } = useSequentialBulk({
+    fetcher,
+    bulkIntents: ["bulk", "bulk_translate", "bulk_alt"],
+    onComplete: ({ succeeded, failed, total, label }) => {
+      if (succeeded > 0) {
+        shopify.toast.show(
+          failed > 0
+            ? `${label}: ${succeeded}/${total} done, ${failed} failed`
+            : `${label}: ${succeeded}/${total} done`,
+        );
+        setSelectedIds([]);
+        revalidator.revalidate();
+      } else {
+        shopify.toast.show(`${label} failed`, { isError: true });
+      }
+    },
+  });
+
   const isBusy =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
+    isBulkRunning ||
+    (["loading", "submitting"].includes(fetcher.state) &&
+      fetcher.formMethod === "POST");
 
   const loadingProductId =
-    isBusy && fetcher.formData?.get("intent") === "single"
+    !isBulkRunning &&
+    isBusy &&
+    fetcher.formData?.get("intent") === "single"
       ? String(fetcher.formData.get("productId") || "")
       : "";
-
-  const isBulkRunning =
-    isBusy &&
-    ["bulk", "bulk_translate", "bulk_alt"].includes(
-      String(fetcher.formData?.get("intent") || ""),
-    );
 
   const selectedOnPage = useMemo(
     () => products.filter((product) => selectedIds.includes(product.id)).length,
@@ -186,6 +203,7 @@ export default function ProductsPage() {
     products.length > 0 && selectedOnPage === Math.min(products.length, maxBulk);
 
   useEffect(() => {
+    if (isBulkRunning) return;
     if (!fetcher.data || fetcher.state !== "idle") return;
 
     const toastKey = JSON.stringify(fetcher.data);
@@ -197,29 +215,6 @@ export default function ProductsPage() {
       fetcher.data.intent === "bulk_translate" ||
       fetcher.data.intent === "bulk_alt"
     ) {
-      const succeeded = fetcher.data.succeeded ?? 0;
-      const failed = fetcher.data.failed ?? 0;
-      const total = fetcher.data.total ?? 0;
-      const verb =
-        fetcher.data.intent === "bulk_translate"
-          ? "Translated"
-          : fetcher.data.intent === "bulk_alt"
-            ? "Updated alt for"
-            : "Optimized";
-
-      if (succeeded > 0) {
-        const successLabel =
-          succeeded === 1
-            ? `${verb} 1 product`
-            : `${verb} ${succeeded} products`;
-        shopify.toast.show(
-          failed > 0 ? `${successLabel}. ${failed} of ${total} failed.` : successLabel,
-        );
-        setSelectedIds([]);
-        revalidator.revalidate();
-      } else if (fetcher.data.error) {
-        shopify.toast.show(fetcher.data.error, { isError: true });
-      }
       return;
     }
 
@@ -235,7 +230,7 @@ export default function ProductsPage() {
     if (fetcher.data.error) {
       shopify.toast.show(fetcher.data.error, { isError: true });
     }
-  }, [fetcher.data, fetcher.state, shopify, revalidator]);
+  }, [fetcher.data, fetcher.state, shopify, revalidator, isBulkRunning]);
 
   const toggleSelected = (productId: string) => {
     setSelectedIds((current) => {
@@ -289,16 +284,27 @@ export default function ProductsPage() {
       return;
     }
 
-    const formData = new FormData();
-    formData.set("intent", bulkAction);
-    if (bulkAction === "bulk_translate") {
-      formData.set("sourceLanguage", sourceLanguage);
-      formData.set("targetLanguage", targetLanguage);
-    }
-    for (const id of selectedIds.slice(0, maxBulk)) {
-      formData.append("productIds", id);
-    }
-    fetcher.submit(formData, { method: "post" });
+    const label =
+      bulkAction === "bulk_translate"
+        ? "Bulk translate"
+        : bulkAction === "bulk_alt"
+          ? "Bulk alt text"
+          : "Bulk optimize";
+
+    startBulk({
+      ids: selectedIds.slice(0, maxBulk),
+      label,
+      buildFormData: (productId) => {
+        const formData = new FormData();
+        formData.set("intent", bulkAction);
+        formData.append("productIds", productId);
+        if (bulkAction === "bulk_translate") {
+          formData.set("sourceLanguage", sourceLanguage);
+          formData.set("targetLanguage", targetLanguage);
+        }
+        return formData;
+      },
+    });
   };
 
   return (
@@ -396,12 +402,14 @@ export default function ProductsPage() {
               onClick={runBulk}
             >
               {isBulkRunning
-                ? `Working on ${selectedIds.length}...`
+                ? `${bulkProgress?.percent ?? 0}%`
                 : `Run (${selectedIds.length || 0})`}
             </button>
           </div>
         </div>
       )}
+
+      {bulkProgress && <BulkProgressBar {...bulkProgress} />}
 
       <div className="dashboard-products">
         {products.length === 0 ? (

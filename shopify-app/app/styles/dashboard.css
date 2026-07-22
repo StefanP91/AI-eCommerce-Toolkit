@@ -627,6 +627,51 @@
   accent-color: var(--dash-purple);
 }
 
+.dashboard-bulk-progress {
+  margin-bottom: 0.85rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--dash-radius);
+  border: 1px solid rgba(134, 59, 255, 0.35);
+  background: rgba(134, 59, 255, 0.08);
+}
+
+.dashboard-bulk-progress-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+  font-size: 0.85rem;
+}
+
+.dashboard-bulk-progress-top strong {
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.dashboard-bulk-progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.dashboard-bulk-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--dash-purple), var(--dash-blue));
+  transition: width 0.25s ease;
+}
+
+.dashboard-bulk-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  color: var(--dash-muted);
+  font-size: 0.78rem;
+}
+
 .dashboard-product-copy {
   min-width: 0;
 }
