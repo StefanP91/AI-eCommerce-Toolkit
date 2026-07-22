@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="64" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7E14FF"/>
+      <stop offset="1" stop-color="#863BFF"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="160" y1="120" x2="360" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <ellipse cx="196" cy="148" rx="120" ry="72" fill="url(#shine)"/>
+  <path fill="#FFFFFF" d="M156 196c0-22.1 17.9-40 40-40h120c22.1 0 40 17.9 40 40v8H156v-8Z"/>
+  <path fill="#FFFFFF" d="M136 220h240l-24 176c-2.7 19.8-19.5 34-39.5 34h-112.9c-20 0-36.8-14.2-39.5-34L136 220Zm48 40v96h40V260h-40Zm64 0v96h40V260h-40Z"/>
+  <path fill="#EDE6FF" d="M332 132c18.8 0 34 15.2 34 34s-15.2 34-34 34-34-15.2-34-34 15.2-34 34-34Z"/>
+  <path fill="#FFFFFF" d="M332 118l6 12 13 2-9 9 2 13-12-6-12 6 2-13-9-9 13-2 6-12Z"/>
+  <path fill="#47BFFF" d="M388 168c10.5 0 19 8.5 19 19s-8.5 19-19 19-19-8.5-19-19 8.5-19 19-19Z"/>
+  <path fill="#FFFFFF" d="M388 160l3.5 7 7.5 1.1-5.5 5.3 1.3 7.5-6.8-3.6-6.8 3.6 1.3-7.5-5.5-5.3 7.5-1.1L388 160Z"/>
+</svg>
