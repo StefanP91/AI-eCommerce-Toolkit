@@ -6,6 +6,10 @@
   flex-wrap: wrap;
 }
 
+.dashboard-tools-search {
+  margin-bottom: 1rem;
+}
+
 .dashboard-tools-preview-thumb {
   width: 48px;
   height: 48px;

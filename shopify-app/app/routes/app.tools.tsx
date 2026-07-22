@@ -611,7 +611,11 @@ export default function ToolsPage() {
         </div>
       )}
 
-      <Form method="get" action="/app/tools" className="dashboard-product-search">
+      <Form
+        method="get"
+        action="/app/tools"
+        className="dashboard-product-search dashboard-tools-search"
+      >
         <input
           type="search"
           name="q"
