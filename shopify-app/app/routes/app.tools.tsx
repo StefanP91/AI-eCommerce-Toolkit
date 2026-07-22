@@ -3,7 +3,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData } from "react-router";
+import { Form, Link, useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
@@ -38,11 +38,14 @@ type ToolTab = "translate" | "titles" | "alt" | "schema";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
+  const url = new URL(request.url);
+  const search = (url.searchParams.get("q") || "").trim();
+  const query = search.length > 0 ? search : null;
 
   const response = await admin.graphql(
     `#graphql
-      query ToolsProductList {
-        products(first: 50, sortKey: UPDATED_AT, reverse: true) {
+      query ToolsProductList($query: String) {
+        products(first: 50, query: $query, sortKey: UPDATED_AT, reverse: true) {
           edges {
             node {
               id
@@ -81,6 +84,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }
         }
       }`,
+    { variables: { query } },
   );
 
   const json = await response.json();
@@ -140,6 +144,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     products,
+    search,
     shop: session.shop,
     aiConfigured: isGeminiConfigured(),
     languages: TOOL_LANGUAGES,
@@ -475,7 +480,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function ToolsPage() {
-  const { products, shop, aiConfigured, languages, tones } =
+  const { products, search, shop, aiConfigured, languages, tones } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
@@ -489,6 +494,18 @@ export default function ToolsPage() {
   const [country, setCountry] = useState("US");
   const [selectedTitle, setSelectedTitle] = useState("");
   const lastToastKey = useRef<string | null>(null);
+
+  const productIdsKey = products.map((product) => product.id).join("|");
+
+  useEffect(() => {
+    if (products.length === 0) {
+      setProductId("");
+      return;
+    }
+    if (!products.some((product) => product.id === productId)) {
+      setProductId(products[0].id);
+    }
+  }, [productIdsKey, products, productId]);
 
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === productId) || null,
@@ -594,15 +611,39 @@ export default function ToolsPage() {
         </div>
       )}
 
+      <Form method="get" action="/app/tools" className="dashboard-product-search">
+        <input
+          type="search"
+          name="q"
+          defaultValue={search}
+          placeholder="Search products by title, SKU, or tag..."
+          className="dashboard-search-input"
+          aria-label="Search products"
+        />
+        <button type="submit" className="dashboard-btn dashboard-btn-primary">
+          Search
+        </button>
+        {search ? (
+          <Link to="/app/tools" className="dashboard-btn dashboard-btn-ghost">
+            Clear
+          </Link>
+        ) : null}
+      </Form>
+
       {products.length === 0 ? (
         <div className="dashboard-card">
-          No products found. Import or create products in Shopify first.
+          {search
+            ? `No products found for "${search}". Try a different search term.`
+            : "No products found. Import or create products in Shopify first."}
         </div>
       ) : (
         <>
           <div className="dashboard-tools-bar">
             <label className="dashboard-field">
-              <span>Product</span>
+              <span>
+                Product
+                {search ? ` (${products.length} matches)` : ""}
+              </span>
               <select
                 className="dashboard-sort-select"
                 value={productId}
