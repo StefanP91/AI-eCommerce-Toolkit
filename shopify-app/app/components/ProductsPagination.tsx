@@ -1,5 +1,9 @@
 import { Link } from "react-router";
-import { buildProductsUrl, type ProductSort } from "../lib/products";
+import {
+  buildProductsUrl,
+  type ProductFilter,
+  type ProductSort,
+} from "../lib/products";
 
 export function ProductsPagination({
   page,
@@ -10,6 +14,7 @@ export function ProductsPagination({
   hasNextPage,
   search,
   sort,
+  filter,
 }: {
   page: number;
   totalPages: number;
@@ -19,6 +24,7 @@ export function ProductsPagination({
   hasNextPage: boolean;
   search: string;
   sort: ProductSort;
+  filter: ProductFilter;
 }) {
   if (totalCount === 0) {
     return null;
@@ -26,19 +32,23 @@ export function ProductsPagination({
 
   const rangeStart = (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, totalCount);
-  const summaryLabel = search
-    ? `Showing ${rangeStart}–${rangeEnd} of ${totalCount} results for "${search}"`
-    : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} products`;
+  const parts = [
+    `Showing ${rangeStart}–${rangeEnd} of ${totalCount}`,
+    filter === "needs_ai" ? "products that need AI" : "products",
+  ];
+  if (search) {
+    parts.push(`for "${search}"`);
+  }
 
   return (
     <div className="dashboard-pagination-wrap">
-      <p className="dashboard-pagination-summary">{summaryLabel}</p>
+      <p className="dashboard-pagination-summary">{parts.join(" ")}</p>
 
       {totalPages > 1 && (
         <nav className="dashboard-pagination" aria-label="Products pagination">
           {hasPreviousPage ? (
             <Link
-              to={buildProductsUrl({ page: page - 1, q: search, sort })}
+              to={buildProductsUrl({ page: page - 1, q: search, sort, filter })}
               className="dashboard-btn dashboard-btn-ghost"
             >
               Previous
@@ -55,7 +65,7 @@ export function ProductsPagination({
 
           {hasNextPage ? (
             <Link
-              to={buildProductsUrl({ page: page + 1, q: search, sort })}
+              to={buildProductsUrl({ page: page + 1, q: search, sort, filter })}
               className="dashboard-btn dashboard-btn-ghost"
             >
               Next

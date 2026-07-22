@@ -1,5 +1,8 @@
-import type { ProductNode, ProductSort } from "./products";
-import { scoreProduct } from "./products";
+import type { ProductNode, ProductFilter, ProductSort } from "./products";
+import {
+  NEEDS_AI_SCORE_THRESHOLD,
+  scoreProduct,
+} from "./products";
 
 export const PRODUCTS_PAGE_SIZE = 25;
 
@@ -114,6 +117,7 @@ export type ProductsPageResult = {
   hasPreviousPage: boolean;
   search: string;
   sort: ProductSort;
+  filter: ProductFilter;
 };
 
 async function fetchAllProducts(
@@ -161,36 +165,70 @@ function sortProducts(
   return sorted;
 }
 
+function filterProducts(
+  products: ProductNode[],
+  filter: ProductFilter,
+): ProductNode[] {
+  if (filter !== "needs_ai") {
+    return products;
+  }
+  return products.filter(
+    (product) => scoreProduct(product) < NEEDS_AI_SCORE_THRESHOLD,
+  );
+}
+
+function paginateProducts(
+  products: ProductNode[],
+  page: number,
+  pageSize: number,
+  search: string,
+  sort: ProductSort,
+  filter: ProductFilter,
+): ProductsPageResult {
+  const totalCount = products.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize) || 1);
+  const targetPage = Math.min(Math.max(1, page), totalPages);
+  const start = (targetPage - 1) * pageSize;
+
+  return {
+    products: products.slice(start, start + pageSize),
+    page: targetPage,
+    pageSize,
+    totalCount,
+    totalPages: totalCount === 0 ? 1 : totalPages,
+    hasNextPage: targetPage < totalPages,
+    hasPreviousPage: targetPage > 1,
+    search,
+    sort,
+    filter,
+  };
+}
+
 export async function fetchProductsPage(
   admin: ShopifyAdmin,
   page: number,
   search = "",
   sort: ProductSort = "updated",
+  filter: ProductFilter = "all",
 ): Promise<ProductsPageResult> {
   const pageSize = PRODUCTS_PAGE_SIZE;
   const normalizedSearch = search.trim();
+  const needsLocalPipeline = sort !== "updated" || filter !== "all";
 
-  if (sort !== "updated") {
+  if (needsLocalPipeline) {
     const allProducts = sortProducts(
-      await fetchAllProducts(admin, normalizedSearch),
-      sort,
+      filterProducts(await fetchAllProducts(admin, normalizedSearch), filter),
+      sort === "updated" && filter === "needs_ai" ? "seo_asc" : sort,
     );
-    const totalCount = allProducts.length;
-    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-    const targetPage = Math.min(Math.max(1, page), totalPages);
-    const start = (targetPage - 1) * pageSize;
 
-    return {
-      products: allProducts.slice(start, start + pageSize),
-      page: targetPage,
+    return paginateProducts(
+      allProducts,
+      page,
       pageSize,
-      totalCount,
-      totalPages,
-      hasNextPage: targetPage < totalPages,
-      hasPreviousPage: targetPage > 1,
-      search: normalizedSearch,
+      normalizedSearch,
       sort,
-    };
+      filter,
+    );
   }
 
   const totalCount = await fetchProductsCount(admin, normalizedSearch);
@@ -228,6 +266,7 @@ export async function fetchProductsPage(
     hasPreviousPage: targetPage > 1,
     search: normalizedSearch,
     sort,
+    filter,
   };
 }
 

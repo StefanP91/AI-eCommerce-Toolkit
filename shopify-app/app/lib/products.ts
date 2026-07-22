@@ -15,6 +15,7 @@ export type ProductNode = {
 };
 
 export type ProductSort = "updated" | "seo_desc" | "seo_asc";
+export type ProductFilter = "all" | "needs_ai";
 
 export const PRODUCT_SORT_OPTIONS: Array<{
   value: ProductSort;
@@ -25,6 +26,8 @@ export const PRODUCT_SORT_OPTIONS: Array<{
   { value: "seo_asc", label: "SEO score: Low to High" },
 ];
 
+export const NEEDS_AI_SCORE_THRESHOLD = 75;
+
 export function parseProductSort(value: string | null): ProductSort {
   if (value === "seo_desc" || value === "seo_asc") {
     return value;
@@ -32,8 +35,17 @@ export function parseProductSort(value: string | null): ProductSort {
   return "updated";
 }
 
+export function parseProductFilter(value: string | null): ProductFilter {
+  return value === "needs_ai" ? "needs_ai" : "all";
+}
+
 export function buildProductsUrl(
-  options: { page?: number; q?: string; sort?: ProductSort } = {},
+  options: {
+    page?: number;
+    q?: string;
+    sort?: ProductSort;
+    filter?: ProductFilter;
+  } = {},
 ) {
   const params = new URLSearchParams();
   const query = options.q?.trim();
@@ -43,6 +55,9 @@ export function buildProductsUrl(
   }
   if (options.sort && options.sort !== "updated") {
     params.set("sort", options.sort);
+  }
+  if (options.filter && options.filter !== "all") {
+    params.set("filter", options.filter);
   }
   if (options.page && options.page > 1) {
     params.set("page", String(options.page));
@@ -84,6 +99,31 @@ export function scoreProduct(product: ProductNode): number {
   if (product.seo?.title?.trim()) score += 25;
   if (product.seo?.description?.trim()) score += 25;
   return score;
+}
+
+export function getProductSeoTips(product: ProductNode): string[] {
+  const tips: string[] = [];
+  const descriptionLength = stripHtml(product.descriptionHtml || "").length;
+
+  if (!product.title?.trim() || product.title.trim().length < 20) {
+    tips.push("Title is missing or too short for SEO");
+  }
+  if (descriptionLength < 80) {
+    tips.push("Description needs more detail (80+ characters)");
+  }
+  if (!product.seo?.title?.trim()) {
+    tips.push("Add a meta title");
+  }
+  if (!product.seo?.description?.trim()) {
+    tips.push("Add a meta description");
+  }
+  if (!product.featuredImage?.url) {
+    tips.push("Add a product image");
+  } else if (!product.featuredImage.altText?.trim()) {
+    tips.push("Add alt text to the product image");
+  }
+
+  return tips.slice(0, 3);
 }
 
 export function buildDashboardStats(products: ProductNode[]): DashboardStats {

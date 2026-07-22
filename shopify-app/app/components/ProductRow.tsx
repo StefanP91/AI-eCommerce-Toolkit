@@ -1,5 +1,9 @@
 import type { useAppBridge } from "@shopify/app-bridge-react";
-import { scoreProduct, type ProductNode } from "../lib/products";
+import {
+  getProductSeoTips,
+  scoreProduct,
+  type ProductNode,
+} from "../lib/products";
 
 export function ProductRow({
   product,
@@ -21,6 +25,7 @@ export function ProductRow({
   shopify: ReturnType<typeof useAppBridge>;
 }) {
   const score = scoreProduct(product);
+  const tips = getProductSeoTips(product);
 
   return (
     <div className={`dashboard-product-row${selected ? " is-selected" : ""}`}>
@@ -52,6 +57,15 @@ export function ProductRow({
             {product.status} · SEO score {score}/100
             {product.seo?.title ? ` · ${product.seo.title}` : " · No meta title"}
           </div>
+          {tips.length > 0 ? (
+            <ul className="dashboard-product-tips">
+              {tips.map((tip) => (
+                <li key={tip}>{tip}</li>
+              ))}
+            </ul>
+          ) : (
+            <div className="dashboard-product-tips-ok">SEO looks complete</div>
+          )}
         </div>
       </div>
       <div className="dashboard-product-actions">

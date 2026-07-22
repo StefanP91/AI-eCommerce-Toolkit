@@ -9,12 +9,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { fetchProductsPage } from "../lib/products.server";
-import { parseProductSort } from "../lib/products";
+import { parseProductFilter, parseProductSort } from "../lib/products";
 import { optimizeProductById } from "../lib/optimize-product.server";
 import { ProductRow } from "../components/ProductRow";
 import { ProductsPagination } from "../components/ProductsPagination";
 import { ProductsSearch } from "../components/ProductsSearch";
 import { ProductsSort } from "../components/ProductsSort";
+import { ProductsFilter } from "../components/ProductsFilter";
 
 export const MAX_BULK_OPTIMIZE = 20;
 
@@ -24,7 +25,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const page = Math.max(1, Number(url.searchParams.get("page") || "1") || 1);
   const search = (url.searchParams.get("q") || "").trim();
   const sort = parseProductSort(url.searchParams.get("sort"));
-  const productsPage = await fetchProductsPage(admin, page, search, sort);
+  const filter = parseProductFilter(url.searchParams.get("filter"));
+  const productsPage = await fetchProductsPage(
+    admin,
+    page,
+    search,
+    sort,
+    filter,
+  );
 
   return {
     ...productsPage,
@@ -101,6 +109,7 @@ export default function ProductsPage() {
     hasPreviousPage,
     search,
     sort,
+    filter,
     aiConfigured,
     maxBulk,
   } = useLoaderData<typeof loader>();
@@ -254,8 +263,11 @@ export default function ProductsPage() {
       )}
 
       <div className="dashboard-products-toolbar">
-        <ProductsSearch defaultQuery={search} sort={sort} />
-        <ProductsSort sort={sort} search={search} />
+        <ProductsSearch defaultQuery={search} sort={sort} filter={filter} />
+        <div className="dashboard-products-toolbar-right">
+          <ProductsFilter filter={filter} search={search} sort={sort} />
+          <ProductsSort sort={sort} search={search} filter={filter} />
+        </div>
       </div>
 
       {products.length > 0 && (
@@ -289,9 +301,13 @@ export default function ProductsPage() {
       <div className="dashboard-products">
         {products.length === 0 ? (
           <div className="dashboard-card">
-            {search
-              ? `No products found for "${search}". Try a different search term.`
-              : "No products yet. Create a product in Shopify Admin, then refresh."}
+            {filter === "needs_ai"
+              ? search
+                ? `No products needing AI found for "${search}".`
+                : "Nice — no products currently need AI optimization."
+              : search
+                ? `No products found for "${search}". Try a different search term.`
+                : "No products yet. Create a product in Shopify Admin, then refresh."}
           </div>
         ) : (
           products.map((product) => (
@@ -319,6 +335,7 @@ export default function ProductsPage() {
         hasNextPage={hasNextPage}
         search={search}
         sort={sort}
+        filter={filter}
       />
 
       {fetcher.data?.ok && fetcher.data.intent === "single" && fetcher.data.generated && (

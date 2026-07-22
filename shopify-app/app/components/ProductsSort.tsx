@@ -2,15 +2,18 @@ import { useNavigate } from "react-router";
 import {
   PRODUCT_SORT_OPTIONS,
   buildProductsUrl,
+  type ProductFilter,
   type ProductSort,
 } from "../lib/products";
 
 export function ProductsSort({
   sort,
   search,
+  filter,
 }: {
   sort: ProductSort;
   search: string;
+  filter: ProductFilter;
 }) {
   const navigate = useNavigate();
 
@@ -26,6 +29,7 @@ export function ProductsSort({
             buildProductsUrl({
               q: search,
               sort: event.target.value as ProductSort,
+              filter,
             }),
           );
         }}
