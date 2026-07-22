@@ -14,7 +14,7 @@ Use these CSV files to populate your **development store** for testing AI Commer
 4. Click **Upload and preview** → **Import products**
 5. Wait until all 100 products are created
 
-For the **with-images** file, Shopify downloads one public placeholder photo per product during import (from picsum.photos). Your store needs internet access for that step.
+For the **with-images** file, Shopify downloads one direct JPEG placeholder per product during import (from placehold.co). Your store needs internet access for that step.
 
 ## What's inside
 

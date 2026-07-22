@@ -64,8 +64,19 @@ function slug(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-function imageUrl(handle, index) {
-  return `https://picsum.photos/seed/ai-suite-${handle}-${index}/600/600`;
+const palette = [
+  ["863bff", "ffffff"],
+  ["47bfff", "0d1117"],
+  ["2ee6a8", "0d1117"],
+  ["1a2744", "e8edf7"],
+  ["6b2fd6", "ffffff"],
+  ["0f1a2e", "47bfff"],
+];
+
+function imageUrl(index) {
+  const [bg, fg] = palette[(index - 1) % palette.length];
+  const text = encodeURIComponent(`Product ${index}`);
+  return `https://placehold.co/600x600/${bg}/${fg}/jpg?text=${text}`;
 }
 
 function buildRows(includeImages) {
@@ -119,7 +130,7 @@ function buildRows(includeImages) {
     ];
 
     if (includeImages) {
-      row.push(imageUrl(handle, i), "1", `${title} image`);
+      row.push(imageUrl(i), "1", `${title} image`);
     }
 
     rows.push(row.map(esc).join(","));
