@@ -4,6 +4,10 @@ export type ProductNode = {
   handle: string;
   descriptionHtml: string;
   status: string;
+  featuredImage: {
+    url: string;
+    altText: string | null;
+  } | null;
   seo: {
     title: string | null;
     description: string | null;

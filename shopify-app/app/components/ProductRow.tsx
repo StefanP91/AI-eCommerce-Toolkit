@@ -30,14 +30,28 @@ export function ProductRow({
 
   return (
     <div className="dashboard-product-row">
-      <div>
-        <strong>{product.title}</strong>
-        <div className="dashboard-product-meta">
-          {product.status} · SEO score {score}/100
-          {product.seo?.title ? ` · ${product.seo.title}` : " · No meta title"}
+      <div className="dashboard-product-main">
+        <div className="dashboard-product-thumb">
+          {product.featuredImage?.url ? (
+            <img
+              src={product.featuredImage.url}
+              alt={product.featuredImage.altText || product.title}
+            />
+          ) : (
+            <div className="dashboard-product-thumb-placeholder" aria-hidden>
+              No image
+            </div>
+          )}
+        </div>
+        <div className="dashboard-product-copy">
+          <strong>{product.title}</strong>
+          <div className="dashboard-product-meta">
+            {product.status} · SEO score {score}/100
+            {product.seo?.title ? ` · ${product.seo.title}` : " · No meta title"}
+          </div>
         </div>
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
+      <div className="dashboard-product-actions">
         <fetcher.Form method="post">
           <input type="hidden" name="productId" value={product.id} />
           <button

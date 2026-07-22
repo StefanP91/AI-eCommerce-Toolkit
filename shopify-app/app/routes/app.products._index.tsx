@@ -9,15 +9,18 @@ import { useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { generateProductContent } from "../lib/ai.server";
-import { fetchProducts } from "../lib/products.server";
+import { fetchProductsPage } from "../lib/products.server";
 import { ProductRow } from "../components/ProductRow";
+import { ProductsPagination } from "../components/ProductsPagination";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
-  const products = await fetchProducts(admin);
+  const url = new URL(request.url);
+  const page = Math.max(1, Number(url.searchParams.get("page") || "1") || 1);
+  const productsPage = await fetchProductsPage(admin, page);
 
   return {
-    products,
+    ...productsPage,
     aiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
   };
 };
@@ -115,7 +118,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function ProductsPage() {
-  const { products, aiConfigured } = useLoaderData<typeof loader>();
+  const {
+    products,
+    page,
+    pageSize,
+    totalCount,
+    totalPages,
+    hasNextPage,
+    hasPreviousPage,
+    aiConfigured,
+  } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
 
@@ -169,6 +181,15 @@ export default function ProductsPage() {
           ))
         )}
       </div>
+
+      <ProductsPagination
+        page={page}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        pageSize={pageSize}
+        hasPreviousPage={hasPreviousPage}
+        hasNextPage={hasNextPage}
+      />
 
       {fetcher.data?.ok && fetcher.data.generated && (
         <section className="dashboard-card" style={{ marginTop: "1rem" }}>
