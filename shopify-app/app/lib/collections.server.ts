@@ -1,5 +1,7 @@
 import { callGeminiJson, clip, clean, isGeminiConfigured } from "./gemini.server";
 import { logActivityRun } from "./activity.server";
+import { recordAiUsageIfFree, requireAiAccess } from "./billing.server";
+import { merchantAiError } from "./merchant-errors";
 
 type ShopifyAdmin = {
   graphql: (
@@ -66,8 +68,40 @@ export async function optimizeCollectionById(
       title: string;
       generated: { title: string; descriptionHtml: string; metaTitle: string; metaDescription: string };
     }
-  | { ok: false; collectionId: string; title?: string; error: string }
+  | {
+      ok: false;
+      collectionId: string;
+      title?: string;
+      error: string;
+      code?: "quota_exceeded";
+      used?: number;
+      limit?: number;
+    }
 > {
+  const access = await requireAiAccess(shop);
+  if (!access.allowed) {
+    const result = {
+      ok: false as const,
+      collectionId,
+      error: access.deny.error,
+      code: access.deny.code,
+      used: access.deny.used,
+      limit: access.deny.limit,
+    };
+    if (shop) {
+      await logActivityRun({
+        shop,
+        resource: "collection",
+        resourceId: collectionId,
+        title: "Collection",
+        action: "collection_optimize",
+        status: "Fail",
+        error: result.error,
+      });
+    }
+    return result;
+  }
+
   const response = await admin.graphql(
     `#graphql
       query OneCollection($id: ID!) {
@@ -171,7 +205,7 @@ Rules:
       ok: false as const,
       collectionId,
       title: collection.title,
-      error: error instanceof Error ? error.message : "AI generation failed",
+      error: merchantAiError(error),
     };
     if (shop) {
       await logActivityRun({
@@ -247,6 +281,8 @@ Rules:
       updateJson.data?.collectionUpdate?.collection?.title || generated.title,
     generated,
   };
+
+  await recordAiUsageIfFree(shop);
 
   if (shop) {
     await logActivityRun({

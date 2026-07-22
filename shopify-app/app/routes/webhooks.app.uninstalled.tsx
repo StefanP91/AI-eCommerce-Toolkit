@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import db from "../db.server";
+import { purgeShopData } from "../lib/compliance.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, session, topic } = await authenticate.webhook(request);
@@ -8,9 +8,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   console.log(`Received ${topic} webhook for ${shop}`);
 
   // Webhook requests can trigger multiple times and after an app has already been uninstalled.
-  // If this webhook already ran, the session may have been deleted previously.
-  if (session) {
-    await db.session.deleteMany({ where: { shop } });
+  // Always attempt shop-scoped purge; ignore if tables are already empty.
+  if (session || shop) {
+    await purgeShopData(shop).catch((error) => {
+      console.error("Failed to purge shop data on uninstall", { shop, error });
+    });
   }
 
   return new Response();

@@ -8,7 +8,7 @@ export async function callGeminiJson(options: {
   const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
 
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured");
+    throw new Error("AI generation is not configured");
   }
 
   const parts: Array<
@@ -43,8 +43,7 @@ export async function callGeminiJson(options: {
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`AI generation failed (${response.status}): ${text.slice(0, 200)}`);
+    throw new Error(`AI generation failed (${response.status})`);
   }
 
   const json = (await response.json()) as {

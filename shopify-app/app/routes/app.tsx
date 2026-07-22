@@ -6,6 +6,7 @@ import { NavMenu } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
 import { DashboardShell } from "../components/DashboardShell";
+import { canUseAi } from "../lib/billing.server";
 import dashboardStyles from "../styles/dashboard.css?url";
 
 export const links: LinksFunction = () => [
@@ -13,14 +14,18 @@ export const links: LinksFunction = () => [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const billing = await canUseAi(session.shop);
 
   // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  return {
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    billing,
+  };
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, billing } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -33,7 +38,7 @@ export default function App() {
         <Link to="/app/tools">Tools</Link>
         <Link to="/app/settings">Settings</Link>
       </NavMenu>
-      <DashboardShell>
+      <DashboardShell billing={billing}>
         <Outlet />
       </DashboardShell>
     </AppProvider>

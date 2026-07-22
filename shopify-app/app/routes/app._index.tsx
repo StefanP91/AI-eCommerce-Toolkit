@@ -3,6 +3,8 @@ import { useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { OnboardingBanner } from "../components/OnboardingBanner";
+import { AI_NOT_CONFIGURED_MERCHANT } from "../lib/merchant-errors";
 import { buildDashboardStats, scoreProduct } from "../lib/products";
 import { fetchProducts } from "../lib/products.server";
 import {
@@ -85,11 +87,10 @@ export default function DashboardPage() {
       </div>
 
       {!aiConfigured && (
-        <div className="dashboard-warning">
-          Add <code>GEMINI_API_KEY</code> to <code>shopify-app/.env</code> for full AI
-          generation.
-        </div>
+        <div className="dashboard-warning">{AI_NOT_CONFIGURED_MERCHANT}</div>
       )}
+
+      <OnboardingBanner />
 
       <div className="dashboard-stats">
         <div className="dashboard-stat-card">

@@ -4,6 +4,8 @@ import {
   translateProductContent,
 } from "./ai-tools.server";
 import { logActivityRun, type ActivityAction } from "./activity.server";
+import { recordAiUsageIfFree, requireAiAccess } from "./billing.server";
+import { merchantAiError } from "./merchant-errors";
 
 type ShopifyAdmin = {
   graphql: (
@@ -29,6 +31,9 @@ export type ProductActionResult =
       productId: string;
       title?: string;
       error: string;
+      code?: "quota_exceeded";
+      used?: number;
+      limit?: number;
     };
 
 async function record(
@@ -53,6 +58,20 @@ export async function optimizeProductById(
   productId: string,
   shop?: string,
 ): Promise<ProductActionResult> {
+  const access = await requireAiAccess(shop);
+  if (!access.allowed) {
+    const result = {
+      ok: false as const,
+      productId,
+      error: access.deny.error,
+      code: access.deny.code,
+      used: access.deny.used,
+      limit: access.deny.limit,
+    };
+    await record(shop, result, "optimize");
+    return result;
+  }
+
   const productResponse = await admin.graphql(
     `#graphql
       query OneProduct($id: ID!) {
@@ -89,7 +108,7 @@ export async function optimizeProductById(
       ok: false as const,
       productId,
       title: product.title,
-      error: error instanceof Error ? error.message : "AI generation failed",
+      error: merchantAiError(error),
     };
     await record(shop, result, "optimize");
     return result;
@@ -153,6 +172,7 @@ export async function optimizeProductById(
       metaDescription: generated.metaDescription,
     },
   };
+  await recordAiUsageIfFree(shop);
   await record(shop, result, "optimize");
   return result;
 }
@@ -162,6 +182,20 @@ export async function translateProductById(
   productId: string,
   options: { sourceLanguage: string; targetLanguage: string; shop?: string },
 ): Promise<ProductActionResult> {
+  const access = await requireAiAccess(options.shop);
+  if (!access.allowed) {
+    const result = {
+      ok: false as const,
+      productId,
+      error: access.deny.error,
+      code: access.deny.code,
+      used: access.deny.used,
+      limit: access.deny.limit,
+    };
+    await record(options.shop, result, "translate");
+    return result;
+  }
+
   const productResponse = await admin.graphql(
     `#graphql
       query OneProductTranslate($id: ID!) {
@@ -208,7 +242,7 @@ export async function translateProductById(
       ok: false as const,
       productId,
       title: product.title,
-      error: error instanceof Error ? error.message : "Translation failed",
+      error: merchantAiError(error),
     };
     await record(options.shop, result, "translate");
     return result;
@@ -261,6 +295,7 @@ export async function translateProductById(
       metaDescription: translated.metaDescription,
     },
   };
+  await recordAiUsageIfFree(options.shop);
   await record(options.shop, result, "translate");
   return result;
 }
@@ -270,6 +305,20 @@ export async function altProductById(
   productId: string,
   shop?: string,
 ): Promise<ProductActionResult> {
+  const access = await requireAiAccess(shop);
+  if (!access.allowed) {
+    const result = {
+      ok: false as const,
+      productId,
+      error: access.deny.error,
+      code: access.deny.code,
+      used: access.deny.used,
+      limit: access.deny.limit,
+    };
+    await record(shop, result, "alt");
+    return result;
+  }
+
   const productResponse = await admin.graphql(
     `#graphql
       query OneProductAlt($id: ID!) {
@@ -335,7 +384,7 @@ export async function altProductById(
       ok: false as const,
       productId,
       title: product.title,
-      error: error instanceof Error ? error.message : "Alt generation failed",
+      error: merchantAiError(error),
     };
     await record(shop, result, "alt");
     return result;
@@ -382,6 +431,7 @@ export async function altProductById(
     title: product.title,
     altText: altResult.altText,
   };
+  await recordAiUsageIfFree(shop);
   await record(shop, result, "alt");
   return result;
 }

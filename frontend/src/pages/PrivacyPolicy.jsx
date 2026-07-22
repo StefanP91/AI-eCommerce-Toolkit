@@ -5,31 +5,40 @@ export default function PrivacyPolicy() {
     <LegalLayout title="Privacy Policy">
       <p>
         AI Commerce Suite (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) operates the website at{' '}
-        <a href="https://ai-ecommerce-suite.netlify.app">ai-ecommerce-suite.netlify.app</a> and provides
-        AI-powered tools for eCommerce sellers. This Privacy Policy explains how we collect, use, and protect
-        your information when you use our service.
+        <a href="https://ai-ecommerce-suite.netlify.app">ai-ecommerce-suite.netlify.app</a> and the
+        embedded Shopify Admin app &quot;AI Commerce Suite&quot;. This Privacy Policy explains how we
+        collect, use, and protect your information when you use our web SaaS or our Shopify app.
       </p>
 
       <h5>1. Information We Collect</h5>
       <p>We collect the following types of information:</p>
       <ul>
         <li>
-          <strong>Account information:</strong> name, email address, and password (stored securely hashed).
+          <strong>Account information (web SaaS):</strong> name, email address, and password (stored
+          securely hashed).
         </li>
         <li>
-          <strong>Product and content data:</strong> product names, URLs, descriptions, and other content you
-          submit to generate AI output, save projects, or use our tools.
+          <strong>Product and content data:</strong> product names, URLs, descriptions, images, and other
+          catalog content you submit to generate AI output, save projects, or optimize inside Shopify.
+        </li>
+        <li>
+          <strong>Shopify Admin data (Shopify app):</strong> when you install the embedded app we access
+          product and collection data via the Shopify Admin API (scopes such as read/write products) to
+          generate suggestions and apply updates you confirm. We store shop domain, session tokens, plan
+          status, daily AI usage counts, and activity logs needed to operate the app. We do not store
+          storefront customer personal information.
         </li>
         <li>
           <strong>Usage data:</strong> tool usage, generation history, credit limits, and plan status.
         </li>
         <li>
-          <strong>Payment information:</strong> subscription and billing details are processed by Lemon Squeezy.
-          We do not store your full payment card details on our servers.
+          <strong>Payment information:</strong> web SaaS subscriptions are processed by Lemon Squeezy.
+          Shopify app Pro subscriptions are billed through Shopify Billing and appear on the merchant&apos;s
+          Shopify invoice. We do not store full payment card details on our servers.
         </li>
         <li>
-          <strong>Technical data:</strong> IP address, browser type, and basic logs needed to operate and secure
-          the service.
+          <strong>Technical data:</strong> IP address, browser type, and basic logs needed to operate and
+          secure the service.
         </li>
       </ul>
 
@@ -46,23 +55,27 @@ export default function PrivacyPolicy() {
 
       <h5>3. AI Processing</h5>
       <p>
-        To generate content, we send the text and data you provide to third-party AI providers (such as Google
-        Gemini and OpenAI). Do not submit sensitive personal data, passwords, or confidential information you do
-        not want processed by these providers. AI-generated output may not always be accurate — review it before
-        publishing.
+        To generate content, we send the text and data you provide (for example product titles, descriptions,
+        and images) to third-party AI providers — primarily Google Gemini. Do not submit sensitive personal
+        data, passwords, or confidential information you do not want processed by these providers.
+        AI-generated output may not always be accurate — review it before publishing to your store.
       </p>
 
       <h5>4. Third-Party Services</h5>
       <p>We use trusted third parties to operate our service, including:</p>
       <ul>
         <li>
-          <strong>Lemon Squeezy</strong> — payment processing and subscription management
+          <strong>Shopify</strong> — app installation, Admin API access, and Billing for the embedded app
         </li>
         <li>
-          <strong>Google Analytics</strong> — anonymized usage analytics (page views and conversion events)
+          <strong>Lemon Squeezy</strong> — payment processing for the web SaaS
         </li>
         <li>
-          <strong>AI providers</strong> — content generation (Google Gemini, OpenAI)
+          <strong>Google Analytics</strong> — anonymized usage analytics on the marketing site (page views
+          and conversion events)
+        </li>
+        <li>
+          <strong>AI providers</strong> — content generation (Google Gemini)
         </li>
         <li>
           <strong>Hosting providers</strong> — application and database hosting
@@ -76,9 +89,11 @@ export default function PrivacyPolicy() {
       <h5>5. Data Retention</h5>
       <p>
         We retain your account data and saved content while your account is active. You may delete saved
-        products and projects from within the app. If you delete your account or request deletion, we will
-        remove or anonymize your personal data within a reasonable period, except where we must retain data for
-        legal, security, or billing purposes.
+        products and projects from within the web app. For the Shopify app, when you uninstall or when Shopify
+        sends a shop redaction request, we delete shop-scoped sessions, plan records, usage counts, and
+        activity logs. If you delete your account or request deletion, we will remove or anonymize your
+        personal data within a reasonable period, except where we must retain data for legal, security, or
+        billing purposes.
       </p>
 
       <h5>6. Data Security</h5>

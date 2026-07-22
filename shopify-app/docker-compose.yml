@@ -1,0 +1,23 @@
+# Local production-like run (SQLite on a volume). For real App Store hosting prefer Fly/Railway/Render.
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      SHOPIFY_API_KEY: ${SHOPIFY_API_KEY}
+      SHOPIFY_API_SECRET: ${SHOPIFY_API_SECRET}
+      SCOPES: ${SCOPES:-read_products,write_products}
+      SHOPIFY_APP_URL: ${SHOPIFY_APP_URL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      BILLING_TEST_CHARGES: ${BILLING_TEST_CHARGES:-0}
+      BILLING_DEV_BYPASS: "0"
+      DATABASE_URL: file:/data/prod.sqlite
+    volumes:
+      - shopify_app_data:/data
+
+volumes:
+  shopify_app_data:

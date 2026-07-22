@@ -11,7 +11,7 @@ export default function LegalLayout({ title, children }) {
       </div>
 
       <h1 className="mb-2">{title}</h1>
-      <p className="text-muted small mb-4">Last updated: July 9, 2026</p>
+      <p className="text-muted small mb-4">Last updated: July 22, 2026</p>
 
       <div className="legal-content">{children}</div>
 

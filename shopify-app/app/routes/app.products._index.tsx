@@ -3,7 +3,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData, useRevalidator } from "react-router";
+import { useFetcher, useLoaderData, useRevalidator, Link } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
@@ -23,11 +23,14 @@ import { ProductsSort } from "../components/ProductsSort";
 import { ProductsFilter } from "../components/ProductsFilter";
 import { BulkProgressBar } from "../components/BulkProgressBar";
 import { useSequentialBulk } from "../hooks/useSequentialBulk";
+import { AiQuotaBanner } from "../components/AiQuotaBanner";
+import { UpgradeToProButton } from "../components/UpgradeToProButton";
+import { canUseAi, requireProPlan } from "../lib/billing.server";
 
 export const MAX_BULK_OPTIMIZE = 20;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const page = Math.max(1, Number(url.searchParams.get("page") || "1") || 1);
   const search = (url.searchParams.get("q") || "").trim();
@@ -46,6 +49,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     aiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
     maxBulk: MAX_BULK_OPTIMIZE,
     languages: TOOL_LANGUAGES,
+    billing: await canUseAi(session.shop),
   };
 };
 
@@ -56,6 +60,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session.shop;
 
   if (intent === "bulk" || intent === "bulk_translate" || intent === "bulk_alt") {
+    const pro = await requireProPlan(shop);
+    if (!pro.allowed) return pro.deny;
+
     const productIds = formData
       .getAll("productIds")
       .map((value) => String(value))
@@ -146,6 +153,7 @@ export default function ProductsPage() {
     aiConfigured,
     maxBulk,
     languages,
+    billing,
   } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
@@ -211,14 +219,15 @@ export default function ProductsPage() {
     lastToastKey.current = toastKey;
 
     if (
-      fetcher.data.intent === "bulk" ||
-      fetcher.data.intent === "bulk_translate" ||
-      fetcher.data.intent === "bulk_alt"
+      fetcher.data.ok &&
+      (fetcher.data.intent === "bulk" ||
+        fetcher.data.intent === "bulk_translate" ||
+        fetcher.data.intent === "bulk_alt")
     ) {
       return;
     }
 
-    if (fetcher.data.intent === "single" && fetcher.data.ok) {
+    if (fetcher.data.ok && fetcher.data.intent === "single") {
       const title = fetcher.data.generated?.title;
       shopify.toast.show(
         title ? `Optimized: ${title}` : "1 product optimized with AI",
@@ -227,7 +236,7 @@ export default function ProductsPage() {
       return;
     }
 
-    if (fetcher.data.error) {
+    if (!fetcher.data.ok && fetcher.data.error) {
       shopify.toast.show(fetcher.data.error, { isError: true });
     }
   }, [fetcher.data, fetcher.state, shopify, revalidator, isBulkRunning]);
@@ -279,6 +288,12 @@ export default function ProductsPage() {
   };
 
   const runBulk = () => {
+    if (billing.plan !== "pro") {
+      shopify.toast.show("Bulk actions require Pro — open Settings to upgrade", {
+        isError: true,
+      });
+      return;
+    }
     if (selectedIds.length === 0) {
       shopify.toast.show("Select at least one product", { isError: true });
       return;
@@ -318,10 +333,11 @@ export default function ProductsPage() {
 
       {!aiConfigured && (
         <div className="dashboard-warning">
-          Add <code>GEMINI_API_KEY</code> to <code>shopify-app/.env</code> for full AI
-          generation.
+          AI generation is temporarily unavailable. You can still browse and manage
+          products — contact support if this continues.
         </div>
       )}
+      <AiQuotaBanner billing={billing} />
 
       <div className="dashboard-products-toolbar">
         <ProductsSearch defaultQuery={search} sort={sort} filter={filter} />
@@ -348,10 +364,11 @@ export default function ProductsPage() {
           </label>
 
           <div className="dashboard-bulk-controls">
+            <span className="dashboard-badge dashboard-badge-pro">Pro</span>
             <select
               className="dashboard-sort-select"
               value={bulkAction}
-              disabled={isBusy}
+              disabled={isBusy || billing.plan !== "pro"}
               onChange={(event) =>
                 setBulkAction(
                   event.target.value as "bulk" | "bulk_translate" | "bulk_alt",
@@ -369,7 +386,7 @@ export default function ProductsPage() {
                 <select
                   className="dashboard-sort-select"
                   value={sourceLanguage}
-                  disabled={isBusy}
+                  disabled={isBusy || billing.plan !== "pro"}
                   onChange={(event) => setSourceLanguage(event.target.value)}
                   aria-label="Source language"
                 >
@@ -382,7 +399,7 @@ export default function ProductsPage() {
                 <select
                   className="dashboard-sort-select"
                   value={targetLanguage}
-                  disabled={isBusy}
+                  disabled={isBusy || billing.plan !== "pro"}
                   onChange={(event) => setTargetLanguage(event.target.value)}
                   aria-label="Target language"
                 >
@@ -395,16 +412,20 @@ export default function ProductsPage() {
               </>
             )}
 
-            <button
-              type="button"
-              className="dashboard-btn dashboard-btn-primary"
-              disabled={isBusy || selectedIds.length === 0}
-              onClick={runBulk}
-            >
-              {isBulkRunning
-                ? `${bulkProgress?.percent ?? 0}%`
-                : `Run (${selectedIds.length || 0})`}
-            </button>
+            {billing.plan === "pro" ? (
+              <button
+                type="button"
+                className="dashboard-btn dashboard-btn-primary"
+                disabled={isBusy || selectedIds.length === 0}
+                onClick={runBulk}
+              >
+                {isBulkRunning
+                  ? `${bulkProgress?.percent ?? 0}%`
+                  : `Run (${selectedIds.length || 0})`}
+              </button>
+            ) : (
+              <UpgradeToProButton className="dashboard-btn dashboard-btn-primary" />
+            )}
           </div>
         </div>
       )}

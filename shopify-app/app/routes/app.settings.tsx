@@ -1,33 +1,121 @@
 import type {
+  ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { Link, useLoaderData } from "react-router";
+import { Link, useFetcher, useLoaderData } from "react-router";
+import { useAppBridge } from "@shopify/app-bridge-react";
+import { useEffect, useRef } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { isGeminiConfigured } from "../lib/gemini.server";
+import {
+  canUseAi,
+  createProSubscription,
+  FREE_DAILY_AI_LIMIT,
+  planSummary,
+  PRO_PRICE,
+  syncSubscriptionFromShopify,
+} from "../lib/billing.server";
+import { UpgradeToProButton } from "../components/UpgradeToProButton";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const { admin, session } = await authenticate.admin(request);
+  const url = new URL(request.url);
+
+  if (url.searchParams.get("billing") === "1") {
+    await syncSubscriptionFromShopify(admin, session.shop);
+  }
+
+  const billing = await canUseAi(session.shop);
 
   return {
     shop: session.shop,
     aiConfigured: isGeminiConfigured(),
-    model,
-    scopes: "read_products, write_products",
+    billing,
+    summary: planSummary(billing),
+    freeLimit: FREE_DAILY_AI_LIMIT,
+    proPrice: PRO_PRICE,
   };
 };
 
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { admin, session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent") || "");
+
+  if (intent === "upgrade") {
+    const url = new URL(request.url);
+    const returnUrl = `${url.origin}/app/settings?billing=1`;
+    try {
+      const { confirmationUrl } = await createProSubscription(
+        admin,
+        session.shop,
+        returnUrl,
+      );
+      return {
+        ok: true as const,
+        intent: "upgrade" as const,
+        confirmationUrl,
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not start Pro upgrade",
+      };
+    }
+  }
+
+  if (intent === "sync") {
+    await syncSubscriptionFromShopify(admin, session.shop);
+    return { ok: true as const, intent: "sync" as const };
+  }
+
+  return { ok: false as const, error: "Unknown action" };
+};
+
 export default function SettingsPage() {
-  const { shop, aiConfigured, model, scopes } = useLoaderData<typeof loader>();
+  const { shop, aiConfigured, billing, summary, freeLimit, proPrice } =
+    useLoaderData<typeof loader>();
+  const fetcher = useFetcher<typeof action>();
+  const shopify = useAppBridge();
+  const lastToastKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!fetcher.data || fetcher.state !== "idle") return;
+    const toastKey = JSON.stringify(fetcher.data);
+    if (lastToastKey.current === toastKey) return;
+    lastToastKey.current = toastKey;
+
+    if (fetcher.data.ok && "confirmationUrl" in fetcher.data) {
+      const url = fetcher.data.confirmationUrl;
+      open(url, "_top");
+      return;
+    }
+
+    if (fetcher.data.ok && fetcher.data.intent === "sync") {
+      shopify.toast.show("Plan status refreshed");
+      return;
+    }
+
+    if (!fetcher.data.ok && "error" in fetcher.data && fetcher.data.error) {
+      shopify.toast.show(fetcher.data.error, { isError: true });
+    }
+  }, [fetcher.data, fetcher.state, shopify]);
+
+  const isBusy =
+    ["loading", "submitting"].includes(fetcher.state) &&
+    fetcher.formMethod === "POST";
 
   return (
     <>
       <div className="dashboard-topbar">
         <div>
           <h1>Settings</h1>
-          <p>Store connection, AI status, and what this app can do</p>
+          <p>Store connection, plan, and what this app can do</p>
         </div>
       </div>
 
@@ -36,20 +124,74 @@ export default function SettingsPage() {
           <h2>Store</h2>
           <dl className="dashboard-settings-list">
             <div>
-              <dt>Connected shop</dt>
+              <dt>This install</dt>
               <dd>{shop}</dd>
-            </div>
-            <div>
-              <dt>Access</dt>
-              <dd>{scopes}</dd>
             </div>
           </dl>
           <p className="dashboard-settings-note">
-            The app can read and update products and collections in this store.
-            Uninstall from Shopify Admin if you want to revoke access.
+            Everything you do here only affects this Shopify store. Install the
+            same app on another store and that shop gets its own separate
+            workspace — catalogs are never mixed.
           </p>
         </section>
 
+        <section className="dashboard-card">
+          <h2>Plan</h2>
+          <div className="dashboard-settings-status">
+            <span
+              className={`dashboard-badge ${
+                billing.plan === "pro"
+                  ? "dashboard-badge-success"
+                  : "dashboard-badge-pending"
+              }`}
+            >
+              {summary.name}
+            </span>
+            <span className="dashboard-settings-meta">{summary.priceLabel}</span>
+          </div>
+          <p className="dashboard-settings-note" style={{ marginTop: 0 }}>
+            {summary.usageLabel}
+          </p>
+          <ul className="dashboard-settings-plan-features">
+            {summary.features.map((feature) => (
+              <li key={feature}>{feature}</li>
+            ))}
+          </ul>
+          {billing.plan === "free" ? (
+            <div className="dashboard-tools-actions" style={{ marginTop: "0.9rem" }}>
+              <UpgradeToProButton
+                className="dashboard-btn dashboard-btn-primary"
+                label={`Upgrade to Pro — $${proPrice}/mo`}
+              />
+            </div>
+          ) : (
+            <>
+              <p className="dashboard-settings-note">
+                Pro is active. To manage or cancel your subscription, open{" "}
+                <strong>Shopify Admin → Settings → Apps and sales channels</strong>{" "}
+                (or Billing), find AI Commerce Suite, and manage the plan there.
+                Charges appear on your Shopify invoice.
+              </p>
+              <p className="dashboard-settings-note">
+                After cancelling, click <em>Refresh plan status</em> below if the
+                app still shows Pro.
+              </p>
+            </>
+          )}
+          <fetcher.Form method="post" style={{ marginTop: "0.6rem" }}>
+            <input type="hidden" name="intent" value="sync" />
+            <button
+              type="submit"
+              className="dashboard-btn dashboard-btn-ghost"
+              disabled={isBusy}
+            >
+              Refresh plan status
+            </button>
+          </fetcher.Form>
+        </section>
+      </div>
+
+      <div className="dashboard-settings-grid">
         <section className="dashboard-card">
           <h2>AI</h2>
           <div className="dashboard-settings-status">
@@ -62,12 +204,23 @@ export default function SettingsPage() {
             >
               {aiConfigured ? "Ready" : "Not configured"}
             </span>
-            <span className="dashboard-settings-meta">Model: {model}</span>
           </div>
           <p className="dashboard-settings-note">
             {aiConfigured
-              ? "Gemini is connected. Product optimize, translate, SEO tools, and image optimizer can generate content."
-              : "AI generation is unavailable until the app owner adds a Gemini API key on the server. Schema markup still works without it."}
+              ? "Powers Product Optimize, Translate, SEO tools, and Image Optimizer."
+              : "AI generation is unavailable until the app owner adds an API key on the server. Schema markup still works without it."}
+          </p>
+        </section>
+
+        <section className="dashboard-card">
+          <h2>Free vs Pro</h2>
+          <p className="dashboard-settings-note" style={{ marginTop: 0 }}>
+            Free includes {freeLimit} AI actions per day. Browse and Schema stay
+            unlimited. Bulk optimize is Pro-only. Pro removes the daily cap.
+          </p>
+          <p className="dashboard-settings-note" style={{ marginBottom: 0 }}>
+            Billing is handled by Shopify — you approve the charge in Admin, and
+            it appears on the shop’s Shopify invoice.
           </p>
         </section>
       </div>
@@ -120,7 +273,7 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <section className="dashboard-card">
+      <section className="dashboard-card dashboard-settings-how">
         <h2>How it works</h2>
         <ol className="dashboard-settings-steps">
           <li>Pick a product, collection, or tool.</li>
@@ -131,6 +284,38 @@ export default function SettingsPage() {
           AI Commerce Suite runs inside Shopify Admin. Changes write directly to
           your catalog — there is no separate storefront to manage.
         </p>
+      </section>
+
+      <section className="dashboard-card">
+        <h2>Support &amp; legal</h2>
+        <p className="dashboard-settings-note" style={{ marginTop: 0 }}>
+          Questions or issues? Email{" "}
+          <a href="mailto:stefanpanov0@gmail.com">stefanpanov0@gmail.com</a>.
+        </p>
+        <div className="dashboard-tools-actions">
+          <a
+            className="dashboard-btn dashboard-btn-ghost"
+            href="https://ai-ecommerce-suite.netlify.app/privacy"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Privacy Policy
+          </a>
+          <a
+            className="dashboard-btn dashboard-btn-ghost"
+            href="https://ai-ecommerce-suite.netlify.app/terms"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Terms of Service
+          </a>
+          <a
+            className="dashboard-btn dashboard-btn-ghost"
+            href="mailto:stefanpanov0@gmail.com"
+          >
+            Contact support
+          </a>
+        </div>
       </section>
     </>
   );

@@ -24,6 +24,13 @@ import {
 } from "../lib/image-compress.server";
 import { replaceProductFeaturedImage } from "../lib/shopify-media.server";
 import { isGeminiConfigured } from "../lib/gemini.server";
+import {
+  canUseAi,
+  recordAiUsageIfFree,
+  requireAiAccess,
+} from "../lib/billing.server";
+import { AiQuotaBanner } from "../components/AiQuotaBanner";
+import { merchantAiError } from "../lib/merchant-errors";
 
 type ToolProduct = {
   id: string;
@@ -155,14 +162,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     aiConfigured: isGeminiConfigured(),
     languages: TOOL_LANGUAGES,
     tones: TOOL_TONES,
+    billing: await canUseAi(session.shop),
   };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = String(formData.get("intent") || "");
   const productId = String(formData.get("productId") || "");
+  const shop = session.shop;
 
   if (!productId) {
     return { ok: false as const, error: "Select a product first" };
@@ -232,6 +241,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
 
       if (!apply) {
+        const access = await requireAiAccess(shop);
+        if (!access.allowed) return access.deny;
+
         const sourceLanguage = String(formData.get("sourceLanguage") || "en");
         const targetLanguage = String(formData.get("targetLanguage") || "mk");
         if (sourceLanguage === targetLanguage) {
@@ -251,6 +263,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             metaDescription: product.seo?.description || "",
           },
         });
+        await recordAiUsageIfFree(shop);
       }
 
       if (apply) {
@@ -306,6 +319,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       let metaDescription = metaFromForm;
 
       if (!apply) {
+        const access = await requireAiAccess(shop);
+        if (!access.allowed) return access.deny;
+
         const tone = String(formData.get("tone") || "professional");
         const language = String(formData.get("language") || "en");
         const country = String(formData.get("country") || "US");
@@ -322,6 +338,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           country,
           descriptionHtml: product.descriptionHtml || "",
         });
+        await recordAiUsageIfFree(shop);
       } else {
         const titlesRaw = String(formData.get("titlesJson") || "[]");
         try {
@@ -388,12 +405,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
 
       if (!apply) {
+        const access = await requireAiAccess(shop);
+        if (!access.allowed) return access.deny;
+
         const altResult = await optimizeProductImage({
           productName: product.title,
           imageUrl,
           currentAlt: product.featuredImage?.altText || null,
           includePreview: true,
         });
+        await recordAiUsageIfFree(shop);
         return {
           ok: true as const,
           intent,
@@ -486,13 +507,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (error) {
     return {
       ok: false as const,
-      error: error instanceof Error ? error.message : "Tool failed",
+      error: merchantAiError(error),
     };
   }
 };
 
 export default function ToolsPage() {
-  const { products, search, shop, aiConfigured, languages, tones } =
+  const { products, search, shop, aiConfigured, languages, tones, billing } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
@@ -625,9 +646,11 @@ export default function ToolsPage() {
 
       {!aiConfigured && (
         <div className="dashboard-warning">
-          Add <code>GEMINI_API_KEY</code> for AI tools. Schema works without it.
+          AI tools are temporarily unavailable. Schema markup still works — contact
+          support if this continues.
         </div>
       )}
+      <AiQuotaBanner billing={billing} />
 
       <Form
         method="get"
@@ -759,7 +782,7 @@ export default function ToolsPage() {
                   <button
                     type="button"
                     className="dashboard-btn dashboard-btn-ghost"
-                    disabled={isBusy || !productId || !result || fetcher.data?.intent !== "translate"}
+                    disabled={isBusy || !productId || !result || !(fetcher.data?.ok && fetcher.data.intent === "translate")}
                     onClick={() => submitTool("translate", true)}
                   >
                     Apply to product
@@ -846,7 +869,7 @@ export default function ToolsPage() {
                     disabled={
                       isBusy ||
                       !selectedTitle ||
-                      fetcher.data?.intent !== "titles"
+                      !(fetcher.data?.ok && fetcher.data.intent === "titles")
                     }
                     onClick={() => submitTool("titles", true)}
                   >
@@ -908,8 +931,7 @@ export default function ToolsPage() {
                     disabled={
                       isBusy ||
                       !productId ||
-                      fetcher.data?.intent !== "alt" ||
-                      !fetcher.data?.ok ||
+                      !(fetcher.data?.ok && fetcher.data.intent === "alt") ||
                       !result ||
                       !("canApply" in result) ||
                       !result.canApply

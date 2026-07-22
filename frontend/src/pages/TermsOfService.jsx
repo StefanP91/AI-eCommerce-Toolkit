@@ -6,15 +6,17 @@ export default function TermsOfService() {
       <p>
         These Terms of Service (&quot;Terms&quot;) govern your use of AI Commerce Suite, operated by AI
         Ecommerce Solutions, available at{' '}
-        <a href="https://ai-ecommerce-suite.netlify.app">ai-ecommerce-suite.netlify.app</a>. By creating an
-        account or using the service, you agree to these Terms.
+        <a href="https://ai-ecommerce-suite.netlify.app">ai-ecommerce-suite.netlify.app</a> and as an
+        embedded app in Shopify Admin. By creating an account, installing the Shopify app, or using the
+        service, you agree to these Terms.
       </p>
 
       <h5>1. The Service</h5>
       <p>
-        AI Commerce Suite is a software-as-a-service (SaaS) platform that provides AI-powered tools for
-        eCommerce sellers, including product description generation, SEO tools, translations, image optimization,
-        schema markup, and bulk export features.
+        AI Commerce Suite provides AI-powered tools for eCommerce sellers, including product description
+        generation, SEO tools, translations, image optimization, schema markup, and bulk features. The
+        service is offered as (a) a web SaaS and (b) an embedded Shopify Admin app that writes to your
+        Shopify catalog when you confirm changes.
       </p>
 
       <h5>2. Accounts</h5>
@@ -25,21 +27,30 @@ export default function TermsOfService() {
       </p>
 
       <h5>3. Plans and Billing</h5>
-      <p>We offer a Free plan and a paid Pro plan ($19/month):</p>
+      <p>We offer a Free plan and a paid Pro plan ($19/month), with channel-specific limits:</p>
       <ul>
         <li>
-          <strong>Free plan:</strong> limited daily AI generations and monthly saved products, as described on
-          our Pricing page.
+          <strong>Web SaaS Free:</strong> limited daily AI generations and monthly saved products, as
+          described on our Pricing page.
         </li>
         <li>
-          <strong>Pro plan:</strong> unlimited AI generations and saved products, billed monthly as a
-          subscription.
+          <strong>Web SaaS Pro:</strong> unlimited AI generations and saved products, billed monthly via
+          Lemon Squeezy.
+        </li>
+        <li>
+          <strong>Shopify app Free:</strong> limited daily AI actions (for example 20/day), with browse and
+          Schema available without the AI cap. Bulk AI actions require Pro.
+        </li>
+        <li>
+          <strong>Shopify app Pro:</strong> unlimited AI actions, billed monthly via Shopify Billing at
+          $19/month and charged on the merchant&apos;s Shopify invoice.
         </li>
       </ul>
       <p>
-        Payments are processed by Lemon Squeezy. By subscribing, you also agree to Lemon Squeezy&apos;s terms.
-        Subscriptions renew automatically each billing period unless cancelled before the renewal date. You can
-        cancel anytime through your Lemon Squeezy customer portal or by contacting support.
+        Web SaaS payments are processed by Lemon Squeezy; by subscribing there you also agree to Lemon
+        Squeezy&apos;s terms. Shopify app subscriptions renew through Shopify until cancelled in Shopify
+        Admin (Settings → Apps / billing). Subscriptions renew automatically each billing period unless
+        cancelled before the renewal date.
       </p>
 
       <h5>4. Acceptable Use</h5>
@@ -106,8 +117,9 @@ export default function TermsOfService() {
 
       <h5>12. Refunds</h5>
       <p>
-        Subscription refunds are handled according to Lemon Squeezy&apos;s refund policy and applicable law. If
-        you believe you were charged in error, contact us at{' '}
+        Web SaaS subscription refunds are handled according to Lemon Squeezy&apos;s refund policy and
+        applicable law. Shopify app charges follow Shopify&apos;s billing and refund processes. If you
+        believe you were charged in error, contact us at{' '}
         <a href="mailto:stefanpanov0@gmail.com">stefanpanov0@gmail.com</a> within 14 days of the charge.
       </p>
 

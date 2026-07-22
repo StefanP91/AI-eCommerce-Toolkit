@@ -14,11 +14,14 @@ import {
 } from "../lib/collections.server";
 import { BulkProgressBar } from "../components/BulkProgressBar";
 import { useSequentialBulk } from "../hooks/useSequentialBulk";
+import { AiQuotaBanner } from "../components/AiQuotaBanner";
+import { UpgradeToProButton } from "../components/UpgradeToProButton";
+import { canUseAi, requireProPlan } from "../lib/billing.server";
 
 export const MAX_BULK_COLLECTIONS = 20;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const search = (url.searchParams.get("q") || "").trim();
   const collections = await fetchCollections(admin, search);
@@ -28,6 +31,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     search,
     aiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
     maxBulk: MAX_BULK_COLLECTIONS,
+    billing: await canUseAi(session.shop),
   };
 };
 
@@ -38,6 +42,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session.shop;
 
   if (intent === "bulk") {
+    const pro = await requireProPlan(shop);
+    if (!pro.allowed) return pro.deny;
+
     const collectionIds = formData
       .getAll("collectionIds")
       .map((value) => String(value))
@@ -89,7 +96,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function CollectionsPage() {
-  const { collections, search, aiConfigured, maxBulk } =
+  const { collections, search, aiConfigured, maxBulk, billing } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
@@ -141,7 +148,7 @@ export default function CollectionsPage() {
     if (lastToastKey.current === toastKey) return;
     lastToastKey.current = toastKey;
 
-    if (fetcher.data.intent === "bulk") {
+    if (fetcher.data.ok && fetcher.data.intent === "bulk") {
       return;
     }
 
@@ -178,6 +185,12 @@ export default function CollectionsPage() {
   };
 
   const runBulk = () => {
+    if (billing.plan !== "pro") {
+      shopify.toast.show("Bulk actions require Pro — open Settings to upgrade", {
+        isError: true,
+      });
+      return;
+    }
     if (selectedIds.length === 0) {
       shopify.toast.show("Select at least one collection", { isError: true });
       return;
@@ -205,9 +218,11 @@ export default function CollectionsPage() {
 
       {!aiConfigured && (
         <div className="dashboard-warning">
-          Add <code>GEMINI_API_KEY</code> for full AI collection generation.
+          AI generation is temporarily unavailable for collections. Contact support
+          if this continues.
         </div>
       )}
+      <AiQuotaBanner billing={billing} />
 
       <Form
         method="get"
@@ -258,16 +273,23 @@ export default function CollectionsPage() {
                 : `Select collections (max ${maxBulk})`}
             </span>
           </label>
-          <button
-            type="button"
-            className="dashboard-btn dashboard-btn-primary"
-            disabled={isBusy || selectedIds.length === 0}
-            onClick={runBulk}
-          >
-            {isBulkRunning
-              ? `${bulkProgress?.percent ?? 0}%`
-              : `Bulk optimize (${selectedIds.length || 0})`}
-          </button>
+          <div className="dashboard-bulk-controls">
+            <span className="dashboard-badge dashboard-badge-pro">Pro</span>
+            {billing.plan === "pro" ? (
+              <button
+                type="button"
+                className="dashboard-btn dashboard-btn-primary"
+                disabled={isBusy || selectedIds.length === 0}
+                onClick={runBulk}
+              >
+                {isBulkRunning
+                  ? `${bulkProgress?.percent ?? 0}%`
+                  : `Bulk optimize (${selectedIds.length || 0})`}
+              </button>
+            ) : (
+              <UpgradeToProButton className="dashboard-btn dashboard-btn-primary" />
+            )}
+          </div>
         </div>
       )}
 

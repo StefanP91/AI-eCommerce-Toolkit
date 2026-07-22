@@ -6,13 +6,15 @@ EXPOSE 3000
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV PORT=3000
 
 COPY package.json package-lock.json* ./
 
-RUN npm ci --omit=dev && npm cache clean --force
+# Install all deps for the build, then prune to production.
+RUN npm ci && npm cache clean --force
 
 COPY . .
 
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 
 CMD ["npm", "run", "docker-start"]
