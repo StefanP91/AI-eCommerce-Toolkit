@@ -68,8 +68,8 @@ export type DashboardStats = {
     id: string;
     title: string;
     type: string;
-    status: "Success" | "Pending";
-    timeAgo: string;
+    status: "Optimized" | "Needs AI";
+    seoScore: number;
   }>;
 };
 
@@ -99,22 +99,25 @@ export function buildDashboardStats(products: ProductNode[]): DashboardStats {
   const poor = scores.filter((s) => s < 40).length;
   const total = products.length || 1;
 
-  const recentActivity = products.slice(0, 5).map((product, index) => ({
+  // Show products that most need AI first, then a few already optimized.
+  const ranked = [...products]
+    .map((product) => ({ product, seoScore: scoreProduct(product) }))
+    .sort((a, b) => a.seoScore - b.seoScore || a.product.title.localeCompare(b.product.title));
+
+  const needsAi = ranked.filter((item) => item.seoScore < 75).slice(0, 4);
+  const alreadyOptimized = ranked
+    .filter((item) => item.seoScore >= 75)
+    .slice(0, Math.max(0, 5 - needsAi.length));
+
+  const recentActivity = [...needsAi, ...alreadyOptimized].map(({ product, seoScore }) => ({
     id: product.id,
     title: product.title,
     type:
-      product.seo?.title && product.seo?.description
-        ? "SEO meta optimized"
-        : "Product content ready for AI",
-    status: scoreProduct(product) >= 75 ? ("Success" as const) : ("Pending" as const),
-    timeAgo:
-      index === 0
-        ? "2m ago"
-        : index === 1
-          ? "15m ago"
-          : index === 2
-            ? "1h ago"
-            : `${index + 1}h ago`,
+      seoScore >= 75
+        ? "Title, description, and SEO meta look complete"
+        : "Missing SEO meta or weak product content",
+    status: seoScore >= 75 ? ("Optimized" as const) : ("Needs AI" as const),
+    seoScore,
   }));
 
   return {

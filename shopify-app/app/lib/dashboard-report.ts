@@ -46,14 +46,14 @@ export function buildDashboardReportCsv(
     `Needs work,${stats.seoBreakdown.needsWork}%`,
     `Poor,${stats.seoBreakdown.poor}%`,
     "",
-    "Recent activity",
-    "Product,Type,Status,Time",
+    "Products to optimize",
+    "Product,Type,Status,SEO Score",
     ...stats.recentActivity.map((item) =>
       [
         escapeCsv(item.title),
         escapeCsv(item.type),
         escapeCsv(item.status),
-        escapeCsv(item.timeAgo),
+        String(item.seoScore),
       ].join(","),
     ),
     "",

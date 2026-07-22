@@ -102,11 +102,11 @@ export default function DashboardPage() {
 
       <div className="dashboard-grid-2">
         <section className="dashboard-card">
-          <h2>Recent AI Activity</h2>
+          <h2>Products to optimize</h2>
           <div className="dashboard-activity">
             {stats.recentActivity.length === 0 ? (
               <p style={{ color: "var(--dash-muted)", margin: 0 }}>
-                No products yet. Add products in Shopify to see activity here.
+                No products yet. Add products in Shopify to see status here.
               </p>
             ) : (
               stats.recentActivity.map((item) => (
@@ -115,10 +115,12 @@ export default function DashboardPage() {
                     <div className="dashboard-activity-title">{item.title}</div>
                     <div className="dashboard-activity-sub">{item.type}</div>
                   </div>
-                  <span className="dashboard-activity-sub">{item.timeAgo}</span>
+                  <span className="dashboard-activity-sub">
+                    SEO {item.seoScore}/100
+                  </span>
                   <span
                     className={`dashboard-badge ${
-                      item.status === "Success"
+                      item.status === "Optimized"
                         ? "dashboard-badge-success"
                         : "dashboard-badge-pending"
                     }`}
