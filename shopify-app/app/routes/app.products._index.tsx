@@ -12,12 +12,14 @@ import { generateProductContent } from "../lib/ai.server";
 import { fetchProductsPage } from "../lib/products.server";
 import { ProductRow } from "../components/ProductRow";
 import { ProductsPagination } from "../components/ProductsPagination";
+import { ProductsSearch } from "../components/ProductsSearch";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
   const url = new URL(request.url);
   const page = Math.max(1, Number(url.searchParams.get("page") || "1") || 1);
-  const productsPage = await fetchProductsPage(admin, page);
+  const search = (url.searchParams.get("q") || "").trim();
+  const productsPage = await fetchProductsPage(admin, page, search);
 
   return {
     ...productsPage,
@@ -126,6 +128,7 @@ export default function ProductsPage() {
     totalPages,
     hasNextPage,
     hasPreviousPage,
+    search,
     aiConfigured,
   } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
@@ -163,10 +166,14 @@ export default function ProductsPage() {
         </div>
       )}
 
+      <ProductsSearch defaultQuery={search} />
+
       <div className="dashboard-products">
         {products.length === 0 ? (
           <div className="dashboard-card">
-            No products yet. Create a product in Shopify Admin, then refresh.
+            {search
+              ? `No products found for "${search}". Try a different search term.`
+              : "No products yet. Create a product in Shopify Admin, then refresh."}
           </div>
         ) : (
           products.map((product) => (
@@ -189,6 +196,7 @@ export default function ProductsPage() {
         pageSize={pageSize}
         hasPreviousPage={hasPreviousPage}
         hasNextPage={hasNextPage}
+        search={search}
       />
 
       {fetcher.data?.ok && fetcher.data.generated && (

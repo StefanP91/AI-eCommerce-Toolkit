@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { buildProductsUrl } from "../lib/products";
 
 export function ProductsPagination({
   page,
@@ -7,6 +8,7 @@ export function ProductsPagination({
   pageSize,
   hasPreviousPage,
   hasNextPage,
+  search,
 }: {
   page: number;
   totalPages: number;
@@ -14,6 +16,7 @@ export function ProductsPagination({
   pageSize: number;
   hasPreviousPage: boolean;
   hasNextPage: boolean;
+  search: string;
 }) {
   if (totalCount === 0) {
     return null;
@@ -21,18 +24,19 @@ export function ProductsPagination({
 
   const rangeStart = (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, totalCount);
+  const summaryLabel = search
+    ? `Showing ${rangeStart}–${rangeEnd} of ${totalCount} results for "${search}"`
+    : `Showing ${rangeStart}–${rangeEnd} of ${totalCount} products`;
 
   return (
     <div className="dashboard-pagination-wrap">
-      <p className="dashboard-pagination-summary">
-        Showing {rangeStart}–{rangeEnd} of {totalCount} products
-      </p>
+      <p className="dashboard-pagination-summary">{summaryLabel}</p>
 
       {totalPages > 1 && (
         <nav className="dashboard-pagination" aria-label="Products pagination">
           {hasPreviousPage ? (
             <Link
-              to={page === 2 ? "/app/products" : `/app/products?page=${page - 1}`}
+              to={buildProductsUrl({ page: page - 1, q: search })}
               className="dashboard-btn dashboard-btn-ghost"
             >
               Previous
@@ -49,7 +53,7 @@ export function ProductsPagination({
 
           {hasNextPage ? (
             <Link
-              to={`/app/products?page=${page + 1}`}
+              to={buildProductsUrl({ page: page + 1, q: search })}
               className="dashboard-btn dashboard-btn-ghost"
             >
               Next

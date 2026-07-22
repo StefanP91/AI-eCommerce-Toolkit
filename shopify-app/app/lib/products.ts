@@ -14,6 +14,21 @@ export type ProductNode = {
   };
 };
 
+export function buildProductsUrl(options: { page?: number; q?: string } = {}) {
+  const params = new URLSearchParams();
+  const query = options.q?.trim();
+
+  if (query) {
+    params.set("q", query);
+  }
+  if (options.page && options.page > 1) {
+    params.set("page", String(options.page));
+  }
+
+  const search = params.toString();
+  return search ? `/app/products?${search}` : "/app/products";
+}
+
 export type DashboardStats = {
   totalProducts: number;
   productsOptimized: number;

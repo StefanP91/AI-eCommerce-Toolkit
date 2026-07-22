@@ -293,6 +293,33 @@
   gap: 0.75rem;
 }
 
+.dashboard-product-search {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.dashboard-search-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--dash-border);
+  background: var(--dash-card);
+  color: var(--dash-text);
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.88rem;
+}
+
+.dashboard-search-input::placeholder {
+  color: var(--dash-muted);
+}
+
+.dashboard-search-input:focus {
+  outline: 2px solid rgba(134, 59, 255, 0.45);
+  outline-offset: 1px;
+}
+
 .dashboard-product-row {
   display: flex;
   justify-content: space-between;
@@ -429,5 +456,9 @@
 
   .dashboard-product-actions {
     justify-content: flex-end;
+  }
+
+  .dashboard-product-search {
+    flex-wrap: wrap;
   }
 }
