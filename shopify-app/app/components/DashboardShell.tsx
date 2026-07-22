@@ -14,10 +14,13 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     <div className="dashboard-root">
       <div className="dashboard-shell">
         <aside className="dashboard-sidebar">
-          <div className="dashboard-brand">
-            <div className="dashboard-brand-badge">AI</div>
-            <span>AI Commerce Suite</span>
-          </div>
+          <Link to="/app" className="dashboard-brand">
+            <img
+              src="/branding/logo-horizontal-light.png"
+              alt="AI Commerce Suite"
+              className="dashboard-brand-logo"
+            />
+          </Link>
           <nav className="dashboard-nav">
             {NAV.map((item) => {
               const active = item.end

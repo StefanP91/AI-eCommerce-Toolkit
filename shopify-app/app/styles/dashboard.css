@@ -30,23 +30,17 @@
 }
 
 .dashboard-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
+  display: block;
   padding: 0.35rem 0.55rem 1.25rem;
-  font-weight: 700;
-  font-size: 0.95rem;
+  text-decoration: none;
 }
 
-.dashboard-brand-badge {
-  width: 34px;
+.dashboard-brand-logo {
   height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--dash-purple), var(--dash-blue));
-  display: grid;
-  place-items: center;
-  font-size: 0.72rem;
-  font-weight: 800;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .dashboard-nav {
