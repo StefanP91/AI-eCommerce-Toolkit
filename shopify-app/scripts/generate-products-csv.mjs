@@ -28,7 +28,7 @@ const adjectives = ["Premium", "Classic", "Essential", "Everyday", "Compact", "P
 const nouns = ["Bottle", "Bag", "Kit", "Set", "Tool", "Device", "Accessory", "Organizer", "Holder", "Bundle"];
 const types = ["Electronics", "Home", "Kitchen", "Fitness", "Apparel", "Beauty", "Outdoor", "Office", "Pet", "Baby"];
 
-const headers = [
+const baseHeaders = [
   "Handle",
   "Title",
   "Body (HTML)",
@@ -54,6 +54,8 @@ const headers = [
   "Status",
 ];
 
+const imageHeaders = ["Image Src", "Image Position", "Image Alt Text"];
+
 function esc(value) {
   return `"${String(value).replace(/"/g, '""')}"`;
 }
@@ -62,59 +64,81 @@ function slug(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-const rows = [headers.join(",")];
+function imageUrl(handle, index) {
+  return `https://picsum.photos/seed/ai-suite-${handle}-${index}/600/600`;
+}
 
-for (let i = 1; i <= 100; i += 1) {
-  let handle;
-  let title;
-  let body;
-  let type;
-  let price;
+function buildRows(includeImages) {
+  const headers = includeImages ? [...baseHeaders, ...imageHeaders] : baseHeaders;
+  const rows = [headers.join(",")];
 
-  if (i <= products.length) {
-    [handle, title, body, type, price] = products[i - 1];
-  } else {
-    const adj = adjectives[(i + 3) % adjectives.length];
-    const noun = nouns[(i * 2) % nouns.length];
-    type = types[i % types.length];
-    title = `${adj} ${type} ${noun} ${i}`;
-    handle = slug(title);
-    body = `Simple ${title.toLowerCase()} for daily use.`;
-    price = (9.99 + (i % 40) * 2.5).toFixed(2);
+  for (let i = 1; i <= 100; i += 1) {
+    let handle;
+    let title;
+    let body;
+    let type;
+    let price;
+
+    if (i <= products.length) {
+      [handle, title, body, type, price] = products[i - 1];
+    } else {
+      const adj = adjectives[(i + 3) % adjectives.length];
+      const noun = nouns[(i * 2) % nouns.length];
+      type = types[i % types.length];
+      title = `${adj} ${type} ${noun} ${i}`;
+      handle = slug(title);
+      body = `Simple ${title.toLowerCase()} for daily use.`;
+      price = (9.99 + (i % 40) * 2.5).toFixed(2);
+    }
+
+    const sku = `TEST-${String(i).padStart(3, "0")}`;
+    const row = [
+      handle,
+      title,
+      body,
+      "AI Commerce Test",
+      type,
+      "test-import,ai-suite",
+      "TRUE",
+      "Title",
+      "Default Title",
+      sku,
+      "200",
+      "shopify",
+      "25",
+      "deny",
+      "manual",
+      Number(price).toFixed(2),
+      "",
+      "TRUE",
+      "TRUE",
+      "FALSE",
+      "",
+      "",
+      "active",
+    ];
+
+    if (includeImages) {
+      row.push(imageUrl(handle, i), "1", `${title} image`);
+    }
+
+    rows.push(row.map(esc).join(","));
   }
 
-  const sku = `TEST-${String(i).padStart(3, "0")}`;
-  const row = [
-    handle,
-    title,
-    body,
-    "AI Commerce Test",
-    type,
-    "test-import,ai-suite",
-    "TRUE",
-    "Title",
-    "Default Title",
-    sku,
-    "200",
-    "shopify",
-    "25",
-    "deny",
-    "manual",
-    Number(price).toFixed(2),
-    "",
-    "TRUE",
-    "TRUE",
-    "FALSE",
-    "",
-    "",
-    "active",
-  ];
-
-  rows.push(row.map(esc).join(","));
+  return rows;
 }
 
 const outDir = path.join(process.cwd(), "fixtures");
-const outFile = path.join(outDir, "shopify-products-100.csv");
 fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(outFile, rows.join("\n"), "utf8");
-console.log(`Wrote ${outFile} (${rows.length - 1} products)`);
+
+const files = [
+  ["shopify-products-100.csv", false],
+  ["shopify-products-100-with-images.csv", true],
+];
+
+for (const [filename, withImages] of files) {
+  const rows = buildRows(withImages);
+  const outFile = path.join(outDir, filename);
+  fs.writeFileSync(outFile, rows.join("\n"), "utf8");
+  console.log(`Wrote ${outFile} (${rows.length - 1} products${withImages ? ", with images" : ""})`);
+}
