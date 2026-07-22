@@ -1,23 +1,47 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { buildDashboardStats } from "../lib/products";
+import { buildDashboardStats, scoreProduct } from "../lib/products";
 import { fetchProducts } from "../lib/products.server";
+import {
+  buildDashboardReportCsv,
+  downloadCsv,
+} from "../lib/dashboard-report";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
   const products = await fetchProducts(admin);
   const stats = buildDashboardStats(products);
+  const exportedAt = new Date().toISOString();
 
   return {
     stats,
+    reportRows: products.map((product) => ({
+      title: product.title,
+      handle: product.handle,
+      status: product.status,
+      seoScore: scoreProduct(product),
+      metaTitle: product.seo?.title ?? "",
+      metaDescription: product.seo?.description ?? "",
+    })),
+    exportedAt,
     aiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
   };
 };
 
 export default function DashboardPage() {
-  const { stats, aiConfigured } = useLoaderData<typeof loader>();
+  const { stats, reportRows, exportedAt, aiConfigured } =
+    useLoaderData<typeof loader>();
+  const shopify = useAppBridge();
+
+  const handleExportReport = () => {
+    const csv = buildDashboardReportCsv(stats, reportRows, exportedAt);
+    const date = exportedAt.slice(0, 10);
+    downloadCsv(`ai-commerce-suite-report-${date}.csv`, csv);
+    shopify.toast.show("Report downloaded");
+  };
   const donutStyle = {
     background: `conic-gradient(
       #47bfff 0 ${stats.seoBreakdown.excellent}%,
@@ -36,7 +60,11 @@ export default function DashboardPage() {
         </div>
         <div className="dashboard-topbar-actions">
           <span className="dashboard-pill">Last 7 days</span>
-          <button type="button" className="dashboard-btn dashboard-btn-ghost">
+          <button
+            type="button"
+            className="dashboard-btn dashboard-btn-ghost"
+            onClick={handleExportReport}
+          >
             Export report
           </button>
         </div>
