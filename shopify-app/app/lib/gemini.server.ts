@@ -2,6 +2,7 @@ export async function callGeminiJson(options: {
   prompt: string;
   system?: string;
   temperature?: number;
+  image?: { mimeType: string; base64: string };
 }): Promise<Record<string, unknown>> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
@@ -10,9 +11,21 @@ export async function callGeminiJson(options: {
     throw new Error("GEMINI_API_KEY is not configured");
   }
 
-  const parts: Array<{ text: string }> = [];
+  const parts: Array<
+    | { text: string }
+    | { inline_data: { mime_type: string; data: string } }
+  > = [];
+
   if (options.system) {
     parts.push({ text: options.system });
+  }
+  if (options.image) {
+    parts.push({
+      inline_data: {
+        mime_type: options.image.mimeType,
+        data: options.image.base64,
+      },
+    });
   }
   parts.push({ text: options.prompt });
 

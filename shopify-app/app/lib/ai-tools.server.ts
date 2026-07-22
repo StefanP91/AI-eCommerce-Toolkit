@@ -5,6 +5,11 @@ import {
   isGeminiConfigured,
   stripHtml,
 } from "./gemini.server";
+import {
+  compressProductImage,
+  fetchImageBuffer,
+  toDataUrl,
+} from "./image-compress.server";
 
 export const TOOL_LANGUAGES = [
   { code: "en", label: "English" },
@@ -158,57 +163,129 @@ export async function generateImageAltText(input: {
   filenameSuggestion: string;
   seoTips: string[];
 }> {
-  const name = clean(input.productName);
+  const optimized = await optimizeProductImage({
+    ...input,
+    includePreview: false,
+  });
+  return {
+    altText: optimized.altText,
+    filenameSuggestion: optimized.filenameSuggestion,
+    seoTips: [],
+  };
+}
 
-  if (!isGeminiConfigured()) {
-    return {
-      altText: clip(`${name} product image`, 125),
-      filenameSuggestion: `${slugify(name)}.jpg`,
-      seoTips: [
-        "Keep alt text descriptive and under 125 characters",
-        "Include the main product keyword naturally",
-        "Avoid stuffing keywords or starting with Image of",
-      ],
-    };
+export type ImageOptimizeResult = {
+  altText: string;
+  filenameSuggestion: string;
+  fileSizeKb: number | null;
+  optimizedSizeKb: number | null;
+  savingsPercent: number | null;
+  mimeType: string | null;
+  optimizedMime: string | null;
+  sizeRating: "excellent" | "good" | "fair" | "poor" | "unknown";
+  dimensions: string | null;
+  optimizedDimensions: string | null;
+  wasResized: boolean;
+  previewDataUrl: string | null;
+  currentAlt: string | null;
+  canApply: boolean;
+};
+
+export async function optimizeProductImage(input: {
+  productName: string;
+  imageUrl?: string | null;
+  currentAlt?: string | null;
+  includePreview?: boolean;
+}): Promise<ImageOptimizeResult> {
+  const name = clean(input.productName);
+  const includePreview = input.includePreview !== false;
+  const source = input.imageUrl ? await fetchImageBuffer(input.imageUrl) : null;
+
+  let compressed = null as Awaited<ReturnType<typeof compressProductImage>> | null;
+  if (source) {
+    try {
+      compressed = await compressProductImage(source.bytes);
+    } catch {
+      compressed = null;
+    }
   }
 
-  const parsed = await callGeminiJson({
-    temperature: 0.4,
-    system:
-      'You analyze product images for eCommerce SEO. Return valid JSON only: {"altText":"...","filenameSuggestion":"seo-name.jpg","seoTips":["tip1","tip2","tip3"]}',
-    prompt: `Analyze this product for eCommerce SEO alt text.
+  const visionBase64 =
+    compressed?.bytes.toString("base64") ||
+    (source
+      ? source.bytes.subarray(0, Math.min(source.bytes.byteLength, 4 * 1024 * 1024)).toString("base64")
+      : null);
+  const visionMime = compressed?.mimeType || source?.mimeType || "image/jpeg";
+
+  let altText = clip(`${name} product image`, 125);
+  let filenameSuggestion = `${slugify(name)}.jpg`;
+
+  if (isGeminiConfigured()) {
+    try {
+      const parsed = await callGeminiJson({
+        temperature: 0.4,
+        image: visionBase64
+          ? { mimeType: visionMime, base64: visionBase64 }
+          : undefined,
+        system:
+          'You analyze product images for eCommerce SEO. Return valid JSON only: {"altText":"...","filenameSuggestion":"seo-name.jpg"}',
+        prompt: `Analyze this product image for eCommerce SEO.
 Product: ${name}
-Image URL (may be unused): ${input.imageUrl || "n/a"}
+Current alt text: ${input.currentAlt || "none"}
+File size: ${source ? `${source.sizeKb} KB` : "unknown"}
 Return JSON with:
 - altText: descriptive alt 20-125 chars
-- filenameSuggestion: seo-friendly-name.jpg
-- seoTips: 3 short tips`,
-  });
+- filenameSuggestion: seo-friendly-name.jpg`,
+      });
 
-  const tips = Array.isArray(parsed.seoTips)
-    ? parsed.seoTips.map((tip) => String(tip))
-    : Array.isArray(parsed.seo_tips)
-      ? parsed.seo_tips.map((tip) => String(tip))
-      : [];
-
-  let altText = clean(
-    String(parsed.altText || parsed.alt_text || `${name} product image`),
-  );
-  if (altText.length < 20) {
-    altText = `${altText} for online shopping`.trim();
+      let nextAlt = clean(
+        String(parsed.altText || parsed.alt_text || `${name} product image`),
+      );
+      if (nextAlt.length < 20) {
+        nextAlt = `${nextAlt} for online shopping`.trim();
+      }
+      altText = clip(nextAlt, 125);
+      filenameSuggestion = clean(
+        String(
+          parsed.filenameSuggestion ||
+            parsed.filename_suggestion ||
+            `${slugify(name)}.jpg`,
+        ),
+      );
+    } catch {
+      // Keep fallback SEO content.
+    }
   }
 
   return {
-    altText: clip(altText, 125),
-    filenameSuggestion: clean(
-      String(
-        parsed.filenameSuggestion ||
-          parsed.filename_suggestion ||
-          `${slugify(name)}.jpg`,
-      ),
-    ),
-    seoTips: tips.slice(0, 4),
+    altText,
+    filenameSuggestion,
+    fileSizeKb: source?.sizeKb ?? null,
+    optimizedSizeKb: compressed?.sizeKb ?? null,
+    savingsPercent: compressed?.savingsPercent ?? null,
+    mimeType: source?.mimeType ?? null,
+    optimizedMime: compressed?.mimeType ?? null,
+    sizeRating: rateImageSize(source?.sizeKb ?? null),
+    dimensions: compressed?.originalDimensions ?? null,
+    optimizedDimensions: compressed?.dimensions ?? null,
+    wasResized: compressed?.wasResized ?? false,
+    previewDataUrl:
+      includePreview && compressed
+        ? toDataUrl(compressed.bytes, compressed.mimeType)
+        : null,
+    currentAlt: input.currentAlt ?? null,
+    canApply: Boolean(compressed),
   };
+}
+
+function rateImageSize(
+  sizeKb: number | null,
+): "excellent" | "good" | "fair" | "poor" | "unknown" {
+  if (sizeKb == null) return "unknown";
+  if (sizeKb <= 100) return "excellent";
+  if (sizeKb <= 200) return "good";
+  if (sizeKb <= 500) return "fair";
+  return "poor";
 }
 
 export function buildProductSchema(input: {

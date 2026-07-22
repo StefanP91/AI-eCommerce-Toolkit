@@ -12,11 +12,17 @@ import {
   TOOL_LANGUAGES,
   TOOL_TONES,
   buildProductSchema,
-  generateImageAltText,
   generateMetaDescription,
   generateSeoTitles,
+  optimizeProductImage,
   translateProductContent,
+  type ImageOptimizeResult,
 } from "../lib/ai-tools.server";
+import {
+  compressProductImage,
+  fetchImageBuffer,
+} from "../lib/image-compress.server";
+import { replaceProductFeaturedImage } from "../lib/shopify-media.server";
 import { isGeminiConfigured } from "../lib/gemini.server";
 
 type ToolProduct = {
@@ -373,72 +379,78 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (intent === "alt") {
       const apply = String(formData.get("apply") || "") === "1";
-      let altResult = {
-        altText: String(formData.get("altText") || ""),
-        filenameSuggestion: String(formData.get("filenameSuggestion") || ""),
-        seoTips: [] as string[],
-      };
+
+      if (!imageUrl) {
+        return {
+          ok: false as const,
+          error: "This product has no featured image to optimize",
+        };
+      }
 
       if (!apply) {
-        altResult = await generateImageAltText({
+        const altResult = await optimizeProductImage({
           productName: product.title,
           imageUrl,
+          currentAlt: product.featuredImage?.altText || null,
+          includePreview: true,
         });
-      } else {
-        try {
-          altResult.seoTips = JSON.parse(
-            String(formData.get("seoTipsJson") || "[]"),
-          ) as string[];
-        } catch {
-          altResult.seoTips = [];
-        }
+        return {
+          ok: true as const,
+          intent,
+          applied: false,
+          result: altResult,
+        };
       }
 
-      if (apply) {
-        if (!mediaId) {
-          return {
-            ok: false as const,
-            error: "This product has no image to update",
-          };
-        }
-        if (!altResult.altText) {
-          return { ok: false as const, error: "Generate alt text first" };
-        }
+      const altText = String(formData.get("altText") || "").trim();
+      const filenameSuggestion =
+        String(formData.get("filenameSuggestion") || "").trim() ||
+        "product.jpg";
 
-        const updateResponse = await admin.graphql(
-          `#graphql
-            mutation ApplyAlt($productId: ID!, $media: [UpdateMediaInput!]!) {
-              productUpdateMedia(productId: $productId, media: $media) {
-                media {
-                  ... on MediaImage {
-                    id
-                    alt
-                  }
-                }
-                userErrors { message }
-              }
-            }`,
-          {
-            variables: {
-              productId,
-              media: [{ id: mediaId, alt: altResult.altText }],
-            },
-          },
-        );
-        const updateJson = await updateResponse.json();
-        const errors = updateJson.data?.productUpdateMedia?.userErrors || [];
-        if (errors.length) {
-          return {
-            ok: false as const,
-            error: errors.map((e: { message: string }) => e.message).join(", "),
-          };
-        }
+      if (!altText) {
+        return { ok: false as const, error: "Optimize the image first" };
       }
+
+      const source = await fetchImageBuffer(imageUrl);
+      if (!source) {
+        return {
+          ok: false as const,
+          error: "Could not download the current product image",
+        };
+      }
+
+      const compressed = await compressProductImage(source.bytes);
+      await replaceProductFeaturedImage({
+        admin,
+        productId,
+        oldMediaId: mediaId,
+        imageBytes: compressed.bytes,
+        filename: filenameSuggestion,
+        mimeType: compressed.mimeType,
+        altText,
+      });
+
+      const altResult: ImageOptimizeResult = {
+        altText,
+        filenameSuggestion,
+        fileSizeKb: compressed.originalSizeKb,
+        optimizedSizeKb: compressed.sizeKb,
+        savingsPercent: compressed.savingsPercent,
+        mimeType: source.mimeType,
+        optimizedMime: compressed.mimeType,
+        sizeRating: "good",
+        dimensions: compressed.originalDimensions,
+        optimizedDimensions: compressed.dimensions,
+        wasResized: compressed.wasResized,
+        previewDataUrl: null,
+        currentAlt: product.featuredImage?.altText || null,
+        canApply: false,
+      };
 
       return {
         ok: true as const,
         intent,
-        applied: apply,
+        applied: true,
         result: altResult,
       };
     }
@@ -524,9 +536,15 @@ export default function ToolsPage() {
 
     if (fetcher.data.ok) {
       if (fetcher.data.applied) {
-        shopify.toast.show("Saved to Shopify product");
+        shopify.toast.show(
+          fetcher.data.intent === "alt"
+            ? "Optimized image saved to Shopify"
+            : "Saved to Shopify product",
+        );
       } else if (fetcher.data.intent === "schema") {
         shopify.toast.show("Schema generated");
+      } else if (fetcher.data.intent === "alt") {
+        shopify.toast.show("Image optimized — review and apply");
       } else {
         shopify.toast.show("Generated successfully");
       }
@@ -586,9 +604,9 @@ export default function ToolsPage() {
       fetcher.data.result &&
       "altText" in fetcher.data.result
     ) {
-      formData.set("altText", fetcher.data.result.altText);
-      formData.set("filenameSuggestion", fetcher.data.result.filenameSuggestion);
-      formData.set("seoTipsJson", JSON.stringify(fetcher.data.result.seoTips));
+      const imageResult = fetcher.data.result as ImageOptimizeResult;
+      formData.set("altText", imageResult.altText);
+      formData.set("filenameSuggestion", imageResult.filenameSuggestion);
     }
 
     fetcher.submit(formData, { method: "post" });
@@ -601,7 +619,7 @@ export default function ToolsPage() {
       <div className="dashboard-topbar">
         <div>
           <h1>Tools</h1>
-          <p>Translator, titles & meta, image alt text, and product schema</p>
+          <p>Translator, titles & meta, image optimizer, and product schema</p>
         </div>
       </div>
 
@@ -676,7 +694,7 @@ export default function ToolsPage() {
               [
                 ["translate", "Translator"],
                 ["titles", "Titles & Meta"],
-                ["alt", "Image Alt"],
+                ["alt", "Image Optimizer"],
                 ["schema", "Schema"],
               ] as const
             ).map(([id, label]) => (
@@ -863,18 +881,26 @@ export default function ToolsPage() {
 
             {tab === "alt" && (
               <>
-                <h2>Image Alt Text</h2>
+                <h2>Image Optimizer</h2>
                 <p className="dashboard-tools-help">
-                  Generate SEO-friendly alt text for the product featured image.
+                  Compress and resize the featured image (max 1200px, JPEG
+                  quality 82), then confirm before replacing it in Shopify.
                 </p>
+                {!selectedProduct?.featuredImage?.url ? (
+                  <p className="dashboard-tools-help">
+                    This product has no featured image yet.
+                  </p>
+                ) : null}
                 <div className="dashboard-tools-actions">
                   <button
                     type="button"
                     className="dashboard-btn dashboard-btn-primary"
-                    disabled={isBusy || !productId}
+                    disabled={
+                      isBusy || !productId || !selectedProduct?.featuredImage?.url
+                    }
                     onClick={() => submitTool("alt", false)}
                   >
-                    {isBusy ? "Working..." : "Generate alt text"}
+                    {isBusy ? "Working..." : "Optimize image"}
                   </button>
                   <button
                     type="button"
@@ -883,11 +909,33 @@ export default function ToolsPage() {
                       isBusy ||
                       !productId ||
                       fetcher.data?.intent !== "alt" ||
-                      !selectedProduct?.featuredMediaId
+                      !fetcher.data?.ok ||
+                      !result ||
+                      !("canApply" in result) ||
+                      !result.canApply
                     }
-                    onClick={() => submitTool("alt", true)}
+                    onClick={() => {
+                      if (
+                        !result ||
+                        !("optimizedSizeKb" in result) ||
+                        !result.canApply
+                      ) {
+                        return;
+                      }
+                      const from = result.fileSizeKb ?? "?";
+                      const to = result.optimizedSizeKb ?? "?";
+                      const savings =
+                        result.savingsPercent != null
+                          ? ` (${result.savingsPercent}% smaller)`
+                          : "";
+                      const confirmed = window.confirm(
+                        `Replace the product image in Shopify with the optimized version?\n\n${from} KB → ${to} KB${savings}\n\nThis will upload a new image and remove the current featured image.`,
+                      );
+                      if (!confirmed) return;
+                      submitTool("alt", true);
+                    }}
                   >
-                    Apply to image
+                    Apply to Shopify
                   </button>
                 </div>
                 {fetcher.data?.ok &&
@@ -895,17 +943,103 @@ export default function ToolsPage() {
                   result &&
                   "altText" in result && (
                     <div className="dashboard-tools-result">
+                      <div className="dashboard-image-compare">
+                        {selectedProduct?.featuredImage?.url ? (
+                          <div>
+                            <span className="dashboard-image-stats-label">
+                              Current
+                            </span>
+                            <img
+                              src={selectedProduct.featuredImage.url}
+                              alt={
+                                selectedProduct.featuredImage.altText ||
+                                selectedProduct.title
+                              }
+                              className="dashboard-image-compare-thumb"
+                            />
+                          </div>
+                        ) : null}
+                        {"previewDataUrl" in result && result.previewDataUrl ? (
+                          <div>
+                            <span className="dashboard-image-stats-label">
+                              Optimized preview
+                            </span>
+                            <img
+                              src={result.previewDataUrl}
+                              alt={result.altText}
+                              className="dashboard-image-compare-thumb"
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="dashboard-image-stats">
+                        <div>
+                          <span className="dashboard-image-stats-label">
+                            Original
+                          </span>
+                          <strong>
+                            {result.fileSizeKb != null
+                              ? `${result.fileSizeKb} KB`
+                              : "—"}
+                            {result.dimensions ? ` · ${result.dimensions}` : ""}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="dashboard-image-stats-label">
+                            Optimized
+                          </span>
+                          <strong>
+                            {"optimizedSizeKb" in result &&
+                            result.optimizedSizeKb != null
+                              ? `${result.optimizedSizeKb} KB`
+                              : "—"}
+                            {"optimizedDimensions" in result &&
+                            result.optimizedDimensions
+                              ? ` · ${result.optimizedDimensions}`
+                              : ""}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="dashboard-image-stats-label">
+                            Savings
+                          </span>
+                          <strong>
+                            {"savingsPercent" in result &&
+                            result.savingsPercent != null
+                              ? `${result.savingsPercent}%`
+                              : "—"}
+                            {"wasResized" in result && result.wasResized
+                              ? " · resized"
+                              : ""}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="dashboard-image-stats-label">
+                            Format
+                          </span>
+                          <strong>
+                            {"optimizedMime" in result && result.optimizedMime
+                              ? result.optimizedMime.replace("image/", "")
+                              : "jpeg"}
+                          </strong>
+                        </div>
+                      </div>
                       <p>
                         <strong>Alt text:</strong> {result.altText}
                       </p>
                       <p>
-                        <strong>Filename idea:</strong> {result.filenameSuggestion}
+                        <strong>Filename:</strong> {result.filenameSuggestion}
                       </p>
-                      <ul>
-                        {result.seoTips.map((tip) => (
-                          <li key={tip}>{tip}</li>
-                        ))}
-                      </ul>
+                      {fetcher.data.applied ? (
+                        <p className="dashboard-tools-help">
+                          Optimized image is now live on the product.
+                        </p>
+                      ) : (
+                        <p className="dashboard-tools-help">
+                          Review the preview, then click Apply to Shopify — you
+                          will be asked to confirm first.
+                        </p>
+                      )}
                     </div>
                   )}
               </>

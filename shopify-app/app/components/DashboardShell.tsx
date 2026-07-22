@@ -6,7 +6,7 @@ const NAV = [
   { to: "/app/products", label: "Products" },
   { to: "/app/collections", label: "Collections" },
   { to: "/app/tools", label: "Tools" },
-  { to: "/app/additional", label: "Settings" },
+  { to: "/app/settings", label: "Settings" },
 ];
 
 export function DashboardShell({ children }: { children: ReactNode }) {

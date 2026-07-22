@@ -31,7 +31,7 @@ export default function App() {
         <Link to="/app/products">Products</Link>
         <Link to="/app/collections">Collections</Link>
         <Link to="/app/tools">Tools</Link>
-        <Link to="/app/additional">Settings</Link>
+        <Link to="/app/settings">Settings</Link>
       </NavMenu>
       <DashboardShell>
         <Outlet />

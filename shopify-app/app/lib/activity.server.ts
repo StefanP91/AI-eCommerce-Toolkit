@@ -66,7 +66,7 @@ export function formatActivityAction(action: string): string {
     case "translate":
       return "Translate";
     case "alt":
-      return "Image alt";
+      return "Image optimizer";
     case "collection_optimize":
       return "Collection optimize";
     default:
