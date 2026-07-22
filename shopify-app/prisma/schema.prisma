@@ -32,3 +32,17 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model ActivityRun {
+  id         String   @id @default(cuid())
+  shop       String
+  resource   String
+  resourceId String
+  title      String
+  action     String
+  status     String
+  error      String?
+  createdAt  DateTime @default(now())
+
+  @@index([shop, createdAt])
+}

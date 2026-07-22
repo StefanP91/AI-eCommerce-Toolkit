@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router";
 const NAV = [
   { to: "/app", label: "Dashboard", end: true },
   { to: "/app/products", label: "Products" },
+  { to: "/app/collections", label: "Collections" },
   { to: "/app/tools", label: "Tools" },
   { to: "/app/additional", label: "Settings" },
 ];

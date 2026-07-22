@@ -10,7 +10,12 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { fetchProductsPage } from "../lib/products.server";
 import { parseProductFilter, parseProductSort } from "../lib/products";
-import { optimizeProductById } from "../lib/optimize-product.server";
+import {
+  altProductById,
+  optimizeProductById,
+  translateProductById,
+} from "../lib/optimize-product.server";
+import { TOOL_LANGUAGES } from "../lib/ai-tools.server";
 import { ProductRow } from "../components/ProductRow";
 import { ProductsPagination } from "../components/ProductsPagination";
 import { ProductsSearch } from "../components/ProductsSearch";
@@ -38,15 +43,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ...productsPage,
     aiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
     maxBulk: MAX_BULK_OPTIMIZE,
+    languages: TOOL_LANGUAGES,
   };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = String(formData.get("intent") || "single");
+  const shop = session.shop;
 
-  if (intent === "bulk") {
+  if (intent === "bulk" || intent === "bulk_translate" || intent === "bulk_alt") {
     const productIds = formData
       .getAll("productIds")
       .map((value) => String(value))
@@ -58,8 +65,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const results = [];
-    for (const productId of productIds) {
-      results.push(await optimizeProductById(admin, productId));
+    if (intent === "bulk_translate") {
+      const sourceLanguage = String(formData.get("sourceLanguage") || "en");
+      const targetLanguage = String(formData.get("targetLanguage") || "mk");
+      if (sourceLanguage === targetLanguage) {
+        return {
+          ok: false as const,
+          error: "Source and target language must be different",
+        };
+      }
+      for (const productId of productIds) {
+        results.push(
+          await translateProductById(admin, productId, {
+            sourceLanguage,
+            targetLanguage,
+            shop,
+          }),
+        );
+      }
+    } else if (intent === "bulk_alt") {
+      for (const productId of productIds) {
+        results.push(await altProductById(admin, productId, shop));
+      }
+    } else {
+      for (const productId of productIds) {
+        results.push(await optimizeProductById(admin, productId, shop));
+      }
     }
 
     const succeeded = results.filter((result) => result.ok).length;
@@ -68,7 +99,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return {
       ok: succeeded > 0,
-      intent: "bulk" as const,
+      intent,
       succeeded,
       failed,
       total: results.length,
@@ -85,7 +116,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: false as const, error: "Missing product id" };
   }
 
-  const result = await optimizeProductById(admin, productId);
+  const result = await optimizeProductById(admin, productId, shop);
   if (!result.ok) {
     return { ok: false as const, error: result.error };
   }
@@ -112,11 +143,17 @@ export default function ProductsPage() {
     filter,
     aiConfigured,
     maxBulk,
+    languages,
   } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
   const revalidator = useRevalidator();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState<
+    "bulk" | "bulk_translate" | "bulk_alt"
+  >("bulk");
+  const [sourceLanguage, setSourceLanguage] = useState("en");
+  const [targetLanguage, setTargetLanguage] = useState("mk");
   const lastToastKey = useRef<string | null>(null);
 
   const productIdsKey = products.map((product) => product.id).join("|");
@@ -134,7 +171,11 @@ export default function ProductsPage() {
       ? String(fetcher.formData.get("productId") || "")
       : "";
 
-  const isBulkRunning = isBusy && fetcher.formData?.get("intent") === "bulk";
+  const isBulkRunning =
+    isBusy &&
+    ["bulk", "bulk_translate", "bulk_alt"].includes(
+      String(fetcher.formData?.get("intent") || ""),
+    );
 
   const selectedOnPage = useMemo(
     () => products.filter((product) => selectedIds.includes(product.id)).length,
@@ -151,16 +192,26 @@ export default function ProductsPage() {
     if (lastToastKey.current === toastKey) return;
     lastToastKey.current = toastKey;
 
-    if (fetcher.data.intent === "bulk") {
+    if (
+      fetcher.data.intent === "bulk" ||
+      fetcher.data.intent === "bulk_translate" ||
+      fetcher.data.intent === "bulk_alt"
+    ) {
       const succeeded = fetcher.data.succeeded ?? 0;
       const failed = fetcher.data.failed ?? 0;
       const total = fetcher.data.total ?? 0;
+      const verb =
+        fetcher.data.intent === "bulk_translate"
+          ? "Translated"
+          : fetcher.data.intent === "bulk_alt"
+            ? "Updated alt for"
+            : "Optimized";
 
       if (succeeded > 0) {
         const successLabel =
           succeeded === 1
-            ? "Optimized 1 product with AI"
-            : `Optimized ${succeeded} products with AI`;
+            ? `${verb} 1 product`
+            : `${verb} ${succeeded} products`;
         shopify.toast.show(
           failed > 0 ? `${successLabel}. ${failed} of ${total} failed.` : successLabel,
         );
@@ -232,14 +283,18 @@ export default function ProductsPage() {
     fetcher.submit(formData, { method: "post" });
   };
 
-  const generateBulk = () => {
+  const runBulk = () => {
     if (selectedIds.length === 0) {
       shopify.toast.show("Select at least one product", { isError: true });
       return;
     }
 
     const formData = new FormData();
-    formData.set("intent", "bulk");
+    formData.set("intent", bulkAction);
+    if (bulkAction === "bulk_translate") {
+      formData.set("sourceLanguage", sourceLanguage);
+      formData.set("targetLanguage", targetLanguage);
+    }
     for (const id of selectedIds.slice(0, maxBulk)) {
       formData.append("productIds", id);
     }
@@ -285,16 +340,66 @@ export default function ProductsPage() {
                 : `Select products (max ${maxBulk})`}
             </span>
           </label>
-          <button
-            type="button"
-            className="dashboard-btn dashboard-btn-primary"
-            disabled={isBusy || selectedIds.length === 0}
-            onClick={generateBulk}
-          >
-            {isBulkRunning
-              ? `Optimizing ${selectedIds.length}...`
-              : `Bulk optimize (${selectedIds.length || 0})`}
-          </button>
+
+          <div className="dashboard-bulk-controls">
+            <select
+              className="dashboard-sort-select"
+              value={bulkAction}
+              disabled={isBusy}
+              onChange={(event) =>
+                setBulkAction(
+                  event.target.value as "bulk" | "bulk_translate" | "bulk_alt",
+                )
+              }
+              aria-label="Bulk action"
+            >
+              <option value="bulk">Bulk optimize</option>
+              <option value="bulk_translate">Bulk translate</option>
+              <option value="bulk_alt">Bulk alt text</option>
+            </select>
+
+            {bulkAction === "bulk_translate" && (
+              <>
+                <select
+                  className="dashboard-sort-select"
+                  value={sourceLanguage}
+                  disabled={isBusy}
+                  onChange={(event) => setSourceLanguage(event.target.value)}
+                  aria-label="Source language"
+                >
+                  {languages.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      From {lang.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="dashboard-sort-select"
+                  value={targetLanguage}
+                  disabled={isBusy}
+                  onChange={(event) => setTargetLanguage(event.target.value)}
+                  aria-label="Target language"
+                >
+                  {languages.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      To {lang.label}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+
+            <button
+              type="button"
+              className="dashboard-btn dashboard-btn-primary"
+              disabled={isBusy || selectedIds.length === 0}
+              onClick={runBulk}
+            >
+              {isBulkRunning
+                ? `Working on ${selectedIds.length}...`
+                : `Run (${selectedIds.length || 0})`}
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,0 +1,350 @@
+import type {
+  ActionFunctionArgs,
+  HeadersFunction,
+  LoaderFunctionArgs,
+} from "react-router";
+import { Form, Link, useFetcher, useLoaderData, useRevalidator } from "react-router";
+import { useAppBridge } from "@shopify/app-bridge-react";
+import { useEffect, useRef, useState } from "react";
+import { authenticate } from "../shopify.server";
+import { boundary } from "@shopify/shopify-app-react-router/server";
+import {
+  fetchCollections,
+  optimizeCollectionById,
+} from "../lib/collections.server";
+
+export const MAX_BULK_COLLECTIONS = 20;
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { admin } = await authenticate.admin(request);
+  const url = new URL(request.url);
+  const search = (url.searchParams.get("q") || "").trim();
+  const collections = await fetchCollections(admin, search);
+
+  return {
+    collections,
+    search,
+    aiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
+    maxBulk: MAX_BULK_COLLECTIONS,
+  };
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { admin, session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent") || "single");
+  const shop = session.shop;
+
+  if (intent === "bulk") {
+    const collectionIds = formData
+      .getAll("collectionIds")
+      .map((value) => String(value))
+      .filter(Boolean)
+      .slice(0, MAX_BULK_COLLECTIONS);
+
+    if (collectionIds.length === 0) {
+      return { ok: false as const, error: "Select at least one collection" };
+    }
+
+    const results = [];
+    for (const collectionId of collectionIds) {
+      results.push(await optimizeCollectionById(admin, collectionId, shop));
+    }
+
+    const succeeded = results.filter((result) => result.ok).length;
+    const failed = results.length - succeeded;
+    const firstError = results.find((result) => !result.ok);
+
+    return {
+      ok: succeeded > 0,
+      intent: "bulk" as const,
+      succeeded,
+      failed,
+      total: results.length,
+      error:
+        failed > 0 && firstError && !firstError.ok
+          ? firstError.error
+          : undefined,
+    };
+  }
+
+  const collectionId = String(formData.get("collectionId") || "");
+  if (!collectionId) {
+    return { ok: false as const, error: "Missing collection id" };
+  }
+
+  const result = await optimizeCollectionById(admin, collectionId, shop);
+  if (!result.ok) {
+    return { ok: false as const, error: result.error };
+  }
+
+  return {
+    ok: true as const,
+    intent: "single" as const,
+    title: result.title,
+    generated: result.generated,
+  };
+};
+
+export default function CollectionsPage() {
+  const { collections, search, aiConfigured, maxBulk } =
+    useLoaderData<typeof loader>();
+  const fetcher = useFetcher<typeof action>();
+  const shopify = useAppBridge();
+  const revalidator = useRevalidator();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const lastToastKey = useRef<string | null>(null);
+
+  const isBusy =
+    ["loading", "submitting"].includes(fetcher.state) &&
+    fetcher.formMethod === "POST";
+  const loadingId =
+    isBusy && fetcher.formData?.get("intent") === "single"
+      ? String(fetcher.formData.get("collectionId") || "")
+      : "";
+  const isBulkRunning = isBusy && fetcher.formData?.get("intent") === "bulk";
+
+  const collectionIdsKey = collections.map((item) => item.id).join("|");
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [search, collectionIdsKey]);
+
+  useEffect(() => {
+    if (!fetcher.data || fetcher.state !== "idle") return;
+    const toastKey = JSON.stringify(fetcher.data);
+    if (lastToastKey.current === toastKey) return;
+    lastToastKey.current = toastKey;
+
+    if (fetcher.data.intent === "bulk") {
+      const succeeded = fetcher.data.succeeded ?? 0;
+      const failed = fetcher.data.failed ?? 0;
+      if (succeeded > 0) {
+        shopify.toast.show(
+          failed > 0
+            ? `Optimized ${succeeded} collections. ${failed} failed.`
+            : succeeded === 1
+              ? "Optimized 1 collection"
+              : `Optimized ${succeeded} collections`,
+        );
+        setSelectedIds([]);
+        revalidator.revalidate();
+      } else if (fetcher.data.error) {
+        shopify.toast.show(fetcher.data.error, { isError: true });
+      }
+      return;
+    }
+
+    if (fetcher.data.ok) {
+      shopify.toast.show(
+        fetcher.data.title
+          ? `Optimized: ${fetcher.data.title}`
+          : "Collection optimized",
+      );
+      revalidator.revalidate();
+    } else if (fetcher.data.error) {
+      shopify.toast.show(fetcher.data.error, { isError: true });
+    }
+  }, [fetcher.data, fetcher.state, shopify, revalidator]);
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      if (current.includes(id)) return current.filter((item) => item !== id);
+      if (current.length >= maxBulk) {
+        shopify.toast.show(`Max ${maxBulk} collections at once`, {
+          isError: true,
+        });
+        return current;
+      }
+      return [...current, id];
+    });
+  };
+
+  const runOne = (collectionId: string) => {
+    const formData = new FormData();
+    formData.set("intent", "single");
+    formData.set("collectionId", collectionId);
+    fetcher.submit(formData, { method: "post" });
+  };
+
+  const runBulk = () => {
+    if (selectedIds.length === 0) {
+      shopify.toast.show("Select at least one collection", { isError: true });
+      return;
+    }
+    const formData = new FormData();
+    formData.set("intent", "bulk");
+    for (const id of selectedIds.slice(0, maxBulk)) {
+      formData.append("collectionIds", id);
+    }
+    fetcher.submit(formData, { method: "post" });
+  };
+
+  return (
+    <>
+      <div className="dashboard-topbar">
+        <div>
+          <h1>Collections</h1>
+          <p>Optimize collection titles, descriptions, and SEO meta</p>
+        </div>
+      </div>
+
+      {!aiConfigured && (
+        <div className="dashboard-warning">
+          Add <code>GEMINI_API_KEY</code> for full AI collection generation.
+        </div>
+      )}
+
+      <Form
+        method="get"
+        action="/app/collections"
+        className="dashboard-product-search dashboard-tools-search"
+      >
+        <input
+          type="search"
+          name="q"
+          defaultValue={search}
+          placeholder="Search collections..."
+          className="dashboard-search-input"
+          aria-label="Search collections"
+        />
+        <button type="submit" className="dashboard-btn dashboard-btn-primary">
+          Search
+        </button>
+        {search ? (
+          <Link to="/app/collections" className="dashboard-btn dashboard-btn-ghost">
+            Clear
+          </Link>
+        ) : null}
+      </Form>
+
+      {collections.length > 0 && (
+        <div className="dashboard-bulk-bar">
+          <label className="dashboard-bulk-select">
+            <input
+              type="checkbox"
+              checked={
+                collections.length > 0 &&
+                selectedIds.length === Math.min(collections.length, maxBulk)
+              }
+              disabled={isBusy}
+              onChange={() => {
+                if (selectedIds.length === Math.min(collections.length, maxBulk)) {
+                  setSelectedIds([]);
+                  return;
+                }
+                setSelectedIds(
+                  collections.slice(0, maxBulk).map((item) => item.id),
+                );
+              }}
+            />
+            <span>
+              {selectedIds.length > 0
+                ? `${selectedIds.length} selected (max ${maxBulk})`
+                : `Select collections (max ${maxBulk})`}
+            </span>
+          </label>
+          <button
+            type="button"
+            className="dashboard-btn dashboard-btn-primary"
+            disabled={isBusy || selectedIds.length === 0}
+            onClick={runBulk}
+          >
+            {isBulkRunning
+              ? `Optimizing ${selectedIds.length}...`
+              : `Bulk optimize (${selectedIds.length || 0})`}
+          </button>
+        </div>
+      )}
+
+      <div className="dashboard-products">
+        {collections.length === 0 ? (
+          <div className="dashboard-card">
+            {search
+              ? `No collections found for "${search}".`
+              : "No collections yet. Create a collection in Shopify Admin."}
+          </div>
+        ) : (
+          collections.map((collection) => (
+            <div
+              key={collection.id}
+              className={`dashboard-product-row${
+                selectedIds.includes(collection.id) ? " is-selected" : ""
+              }`}
+            >
+              <div className="dashboard-product-main">
+                <label className="dashboard-product-check">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(collection.id)}
+                    disabled={
+                      isBusy ||
+                      (selectedIds.length >= maxBulk &&
+                        !selectedIds.includes(collection.id))
+                    }
+                    onChange={() => toggleSelected(collection.id)}
+                  />
+                </label>
+                <div className="dashboard-product-thumb">
+                  {collection.image?.url ? (
+                    <img
+                      src={collection.image.url}
+                      alt={collection.image.altText || collection.title}
+                    />
+                  ) : (
+                    <div className="dashboard-product-thumb-placeholder">
+                      No image
+                    </div>
+                  )}
+                </div>
+                <div className="dashboard-product-copy">
+                  <strong>{collection.title}</strong>
+                  <div className="dashboard-product-meta">
+                    /{collection.handle}
+                    {collection.seo?.title
+                      ? ` · ${collection.seo.title}`
+                      : " · No meta title"}
+                  </div>
+                </div>
+              </div>
+              <div className="dashboard-product-actions">
+                <button
+                  type="button"
+                  className="dashboard-btn dashboard-btn-primary"
+                  disabled={isBusy}
+                  onClick={() => runOne(collection.id)}
+                >
+                  {loadingId === collection.id
+                    ? "Generating..."
+                    : "Generate with AI"}
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {fetcher.data?.ok &&
+        fetcher.data.intent === "single" &&
+        fetcher.data.generated && (
+          <section className="dashboard-card" style={{ marginTop: "1rem" }}>
+            <h2>Last result</h2>
+            <p>
+              <strong>Title:</strong> {fetcher.data.generated.title}
+            </p>
+            <p>
+              <strong>Meta title:</strong> {fetcher.data.generated.metaTitle}
+            </p>
+            <p style={{ marginBottom: 0 }}>
+              <strong>Meta description:</strong>{" "}
+              {fetcher.data.generated.metaDescription}
+            </p>
+          </section>
+        )}
+    </>
+  );
+}
+
+export const headers: HeadersFunction = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};

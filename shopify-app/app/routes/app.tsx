@@ -29,6 +29,7 @@ export default function App() {
           Dashboard
         </Link>
         <Link to="/app/products">Products</Link>
+        <Link to="/app/collections">Collections</Link>
         <Link to="/app/tools">Tools</Link>
         <Link to="/app/additional">Settings</Link>
       </NavMenu>

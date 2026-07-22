@@ -9,15 +9,29 @@ import {
   buildDashboardReportCsv,
   downloadCsv,
 } from "../lib/dashboard-report";
+import {
+  formatActivityAction,
+  formatActivityTime,
+  getTodaysActivity,
+} from "../lib/activity.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const products = await fetchProducts(admin);
   const stats = buildDashboardStats(products);
+  const activity = await getTodaysActivity(session.shop, 20);
   const exportedAt = new Date().toISOString();
 
   return {
     stats,
+    activity: activity.map((item) => ({
+      id: item.id,
+      title: item.title,
+      action: formatActivityAction(item.action),
+      status: item.status,
+      time: formatActivityTime(item.createdAt),
+      resource: item.resource,
+    })),
     reportRows: products.map((product) => ({
       title: product.title,
       handle: product.handle,
@@ -32,7 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function DashboardPage() {
-  const { stats, reportRows, exportedAt, aiConfigured } =
+  const { stats, activity, reportRows, exportedAt, aiConfigured } =
     useLoaderData<typeof loader>();
   const shopify = useAppBridge();
 
@@ -102,6 +116,40 @@ export default function DashboardPage() {
 
       <div className="dashboard-grid-2">
         <section className="dashboard-card">
+          <h2>Today&apos;s activity</h2>
+          <div className="dashboard-activity">
+            {activity.length === 0 ? (
+              <p style={{ color: "var(--dash-muted)", margin: 0 }}>
+                No AI runs yet today. Optimize a product or collection to see
+                history here.
+              </p>
+            ) : (
+              activity.map((item) => (
+                <div key={item.id} className="dashboard-activity-item">
+                  <div>
+                    <div className="dashboard-activity-title">{item.title}</div>
+                    <div className="dashboard-activity-sub">
+                      {item.action}
+                      {item.resource === "collection" ? " · Collection" : ""}
+                    </div>
+                  </div>
+                  <span className="dashboard-activity-sub">{item.time}</span>
+                  <span
+                    className={`dashboard-badge ${
+                      item.status === "Success"
+                        ? "dashboard-badge-success"
+                        : "dashboard-badge-pending"
+                    }`}
+                  >
+                    {item.status}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="dashboard-card">
           <h2>Products to optimize</h2>
           <div className="dashboard-activity">
             {stats.recentActivity.length === 0 ? (
@@ -132,55 +180,55 @@ export default function DashboardPage() {
             )}
           </div>
         </section>
+      </div>
 
-        <section className="dashboard-card">
-          <h2>SEO Score Overview</h2>
-          <div className="dashboard-seo-wrap">
-            <div className="dashboard-donut" style={donutStyle}>
-              <div className="dashboard-donut-center">
-                <strong>{stats.avgSeoScore}</strong>
-                <span>
-                  {stats.avgSeoScore >= 80
-                    ? "Excellent"
-                    : stats.avgSeoScore >= 60
-                      ? "Good"
-                      : "Needs work"}
-                </span>
-              </div>
-            </div>
-            <div className="dashboard-legend">
-              <div className="dashboard-legend-row">
-                <span>
-                  <span className="dashboard-dot" style={{ background: "#47bfff" }} />
-                  Excellent
-                </span>
-                <span>{stats.seoBreakdown.excellent}%</span>
-              </div>
-              <div className="dashboard-legend-row">
-                <span>
-                  <span className="dashboard-dot" style={{ background: "#2ee6a8" }} />
-                  Good
-                </span>
-                <span>{stats.seoBreakdown.good}%</span>
-              </div>
-              <div className="dashboard-legend-row">
-                <span>
-                  <span className="dashboard-dot" style={{ background: "#ffc107" }} />
-                  Needs work
-                </span>
-                <span>{stats.seoBreakdown.needsWork}%</span>
-              </div>
-              <div className="dashboard-legend-row">
-                <span>
-                  <span className="dashboard-dot" style={{ background: "#ff6b6b" }} />
-                  Poor
-                </span>
-                <span>{stats.seoBreakdown.poor}%</span>
-              </div>
+      <section className="dashboard-card" style={{ marginTop: "0.85rem" }}>
+        <h2>SEO Score Overview</h2>
+        <div className="dashboard-seo-wrap">
+          <div className="dashboard-donut" style={donutStyle}>
+            <div className="dashboard-donut-center">
+              <strong>{stats.avgSeoScore}</strong>
+              <span>
+                {stats.avgSeoScore >= 80
+                  ? "Excellent"
+                  : stats.avgSeoScore >= 60
+                    ? "Good"
+                    : "Needs work"}
+              </span>
             </div>
           </div>
-        </section>
-      </div>
+          <div className="dashboard-legend">
+            <div className="dashboard-legend-row">
+              <span>
+                <span className="dashboard-dot" style={{ background: "#47bfff" }} />
+                Excellent
+              </span>
+              <span>{stats.seoBreakdown.excellent}%</span>
+            </div>
+            <div className="dashboard-legend-row">
+              <span>
+                <span className="dashboard-dot" style={{ background: "#2ee6a8" }} />
+                Good
+              </span>
+              <span>{stats.seoBreakdown.good}%</span>
+            </div>
+            <div className="dashboard-legend-row">
+              <span>
+                <span className="dashboard-dot" style={{ background: "#ffc107" }} />
+                Needs work
+              </span>
+              <span>{stats.seoBreakdown.needsWork}%</span>
+            </div>
+            <div className="dashboard-legend-row">
+              <span>
+                <span className="dashboard-dot" style={{ background: "#ff6b6b" }} />
+                Poor
+              </span>
+              <span>{stats.seoBreakdown.poor}%</span>
+            </div>
+          </div>
+        </div>
+      </section>
     </>
   );
 }

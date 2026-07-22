@@ -605,6 +605,13 @@
   flex-wrap: wrap;
 }
 
+.dashboard-bulk-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
 .dashboard-bulk-select {
   display: flex;
   align-items: center;
