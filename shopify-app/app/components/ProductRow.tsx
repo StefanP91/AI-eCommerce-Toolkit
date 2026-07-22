@@ -1,36 +1,39 @@
-import type { useFetcher } from "react-router";
 import type { useAppBridge } from "@shopify/app-bridge-react";
 import { scoreProduct, type ProductNode } from "../lib/products";
 
-type ProductsAction = {
-  ok: boolean;
-  error?: string;
-  generated?: {
-    title: string;
-    metaTitle: string;
-    metaDescription: string;
-  };
-};
-
 export function ProductRow({
   product,
-  fetcher,
-  isLoading,
-  loadingProductId,
+  selected,
+  onToggleSelected,
+  selectionDisabled,
+  isBusy,
+  thisLoading,
+  onGenerate,
   shopify,
 }: {
   product: ProductNode;
-  fetcher: ReturnType<typeof useFetcher<ProductsAction>>;
-  isLoading: boolean;
-  loadingProductId: string;
+  selected: boolean;
+  onToggleSelected: (productId: string) => void;
+  selectionDisabled: boolean;
+  isBusy: boolean;
+  thisLoading: boolean;
+  onGenerate: (productId: string) => void;
   shopify: ReturnType<typeof useAppBridge>;
 }) {
-  const thisLoading = loadingProductId === product.id;
   const score = scoreProduct(product);
 
   return (
-    <div className="dashboard-product-row">
+    <div className={`dashboard-product-row${selected ? " is-selected" : ""}`}>
       <div className="dashboard-product-main">
+        <label className="dashboard-product-check">
+          <input
+            type="checkbox"
+            checked={selected}
+            disabled={selectionDisabled && !selected}
+            onChange={() => onToggleSelected(product.id)}
+            aria-label={`Select ${product.title}`}
+          />
+        </label>
         <div className="dashboard-product-thumb">
           {product.featuredImage?.url ? (
             <img
@@ -52,19 +55,18 @@ export function ProductRow({
         </div>
       </div>
       <div className="dashboard-product-actions">
-        <fetcher.Form method="post">
-          <input type="hidden" name="productId" value={product.id} />
-          <button
-            type="submit"
-            className="dashboard-btn dashboard-btn-primary"
-            disabled={isLoading && !thisLoading}
-          >
-            {thisLoading ? "Generating..." : "Generate with AI"}
-          </button>
-        </fetcher.Form>
+        <button
+          type="button"
+          className="dashboard-btn dashboard-btn-primary"
+          disabled={isBusy}
+          onClick={() => onGenerate(product.id)}
+        >
+          {thisLoading ? "Generating..." : "Generate with AI"}
+        </button>
         <button
           type="button"
           className="dashboard-btn dashboard-btn-ghost"
+          disabled={isBusy}
           onClick={() => {
             shopify.intents.invoke?.("edit:shopify/Product", {
               value: product.id,
