@@ -5,7 +5,7 @@ import type {
 } from "react-router";
 import { useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { fetchProductsPage } from "../lib/products.server";
@@ -108,6 +108,7 @@ export default function ProductsPage() {
   const shopify = useAppBridge();
   const revalidator = useRevalidator();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const lastToastKey = useRef<string | null>(null);
 
   const productIdsKey = products.map((product) => product.id).join("|");
 
@@ -135,16 +136,24 @@ export default function ProductsPage() {
     products.length > 0 && selectedOnPage === Math.min(products.length, maxBulk);
 
   useEffect(() => {
-    if (!fetcher.data) return;
+    if (!fetcher.data || fetcher.state !== "idle") return;
+
+    const toastKey = JSON.stringify(fetcher.data);
+    if (lastToastKey.current === toastKey) return;
+    lastToastKey.current = toastKey;
 
     if (fetcher.data.intent === "bulk") {
       const succeeded = fetcher.data.succeeded ?? 0;
       const failed = fetcher.data.failed ?? 0;
+      const total = fetcher.data.total ?? 0;
+
       if (succeeded > 0) {
+        const successLabel =
+          succeeded === 1
+            ? "Optimized 1 product with AI"
+            : `Optimized ${succeeded} products with AI`;
         shopify.toast.show(
-          failed > 0
-            ? `Optimized ${succeeded}/${fetcher.data.total}. ${failed} failed.`
-            : `Optimized ${succeeded} products with AI`,
+          failed > 0 ? `${successLabel}. ${failed} of ${total} failed.` : successLabel,
         );
         setSelectedIds([]);
         revalidator.revalidate();
@@ -154,13 +163,19 @@ export default function ProductsPage() {
       return;
     }
 
-    if (fetcher.data.ok) {
-      shopify.toast.show("Product optimized with AI");
+    if (fetcher.data.intent === "single" && fetcher.data.ok) {
+      const title = fetcher.data.generated?.title;
+      shopify.toast.show(
+        title ? `Optimized: ${title}` : "1 product optimized with AI",
+      );
       revalidator.revalidate();
-    } else if (fetcher.data.error) {
+      return;
+    }
+
+    if (fetcher.data.error) {
       shopify.toast.show(fetcher.data.error, { isError: true });
     }
-  }, [fetcher.data, shopify, revalidator]);
+  }, [fetcher.data, fetcher.state, shopify, revalidator]);
 
   const toggleSelected = (productId: string) => {
     setSelectedIds((current) => {
