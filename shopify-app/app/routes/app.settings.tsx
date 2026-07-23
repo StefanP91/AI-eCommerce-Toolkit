@@ -10,12 +10,15 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { isGeminiConfigured } from "../lib/gemini.server";
 import {
+  buildBillingReturnUrl,
   canUseAi,
   createProSubscription,
   FREE_DAILY_AI_LIMIT,
   planSummary,
   PRO_PRICE,
+  setDevPlan,
   syncSubscriptionFromShopify,
+  useDevBillingBypass,
 } from "../lib/billing.server";
 import { UpgradeToProButton } from "../components/UpgradeToProButton";
 
@@ -23,7 +26,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
 
-  if (url.searchParams.get("billing") === "1") {
+  if (
+    url.searchParams.get("billing") === "1" ||
+    url.searchParams.has("charge_id")
+  ) {
     await syncSubscriptionFromShopify(admin, session.shop);
   }
 
@@ -36,6 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     summary: planSummary(billing),
     freeLimit: FREE_DAILY_AI_LIMIT,
     proPrice: PRO_PRICE,
+    devPlanToggle: useDevBillingBypass(),
   };
 };
 
@@ -45,10 +52,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = String(formData.get("intent") || "");
 
   if (intent === "upgrade") {
-    const url = new URL(request.url);
-    const returnUrl = `${url.origin}/app/settings?billing=1`;
     try {
-      const { confirmationUrl } = await createProSubscription(
+      const returnUrl = await buildBillingReturnUrl(admin, session.shop);
+      const { confirmationUrl, usedDevBypass } = await createProSubscription(
         admin,
         session.shop,
         returnUrl,
@@ -57,6 +63,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ok: true as const,
         intent: "upgrade" as const,
         confirmationUrl,
+        usedDevBypass,
       };
     } catch (error) {
       return {
@@ -74,12 +81,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: true as const, intent: "sync" as const };
   }
 
+  if (intent === "dev_plan") {
+    const plan = String(formData.get("plan") || "") === "pro" ? "pro" : "free";
+    try {
+      await setDevPlan(session.shop, plan);
+      return { ok: true as const, intent: "dev_plan" as const, plan };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error:
+          error instanceof Error ? error.message : "Could not switch plan",
+      };
+    }
+  }
+
   return { ok: false as const, error: "Unknown action" };
 };
 
 export default function SettingsPage() {
-  const { shop, aiConfigured, billing, summary, freeLimit, proPrice } =
-    useLoaderData<typeof loader>();
+  const {
+    shop,
+    aiConfigured,
+    billing,
+    summary,
+    freeLimit,
+    proPrice,
+    devPlanToggle,
+  } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
   const lastToastKey = useRef<string | null>(null);
@@ -91,6 +119,16 @@ export default function SettingsPage() {
     lastToastKey.current = toastKey;
 
     if (fetcher.data.ok && "confirmationUrl" in fetcher.data) {
+      if (
+        "usedDevBypass" in fetcher.data &&
+        fetcher.data.usedDevBypass
+      ) {
+        shopify.toast.show(
+          "Dev bypass still ON — restart shopify app dev after BILLING_DEV_BYPASS=0",
+          { isError: true },
+        );
+        return;
+      }
       const url = fetcher.data.confirmationUrl;
       open(url, "_top");
       return;
@@ -98,6 +136,15 @@ export default function SettingsPage() {
 
     if (fetcher.data.ok && fetcher.data.intent === "sync") {
       shopify.toast.show("Plan status refreshed");
+      return;
+    }
+
+    if (fetcher.data.ok && fetcher.data.intent === "dev_plan") {
+      shopify.toast.show(
+        fetcher.data.plan === "pro"
+          ? "Dev plan: Pro"
+          : "Dev plan: Free",
+      );
       return;
     }
 
@@ -152,6 +199,17 @@ export default function SettingsPage() {
           <p className="dashboard-settings-note" style={{ marginTop: 0 }}>
             {summary.usageLabel}
           </p>
+          {devPlanToggle ? (
+            <p className="dashboard-settings-note" style={{ color: "#ffd666" }}>
+              Dev toggle ON (`BILLING_DEV_BYPASS=1`): use Switch Free/Pro below.
+              Upgrade always goes through Shopify Billing.
+            </p>
+          ) : (
+            <p className="dashboard-settings-note">
+              Billing mode: <strong>Shopify Billing API</strong> (real/test
+              charge confirmation).
+            </p>
+          )}
           <ul className="dashboard-settings-plan-features">
             {summary.features.map((feature) => (
               <li key={feature}>{feature}</li>
@@ -188,6 +246,39 @@ export default function SettingsPage() {
               Refresh plan status
             </button>
           </fetcher.Form>
+          {devPlanToggle && (
+            <div
+              className="dashboard-tools-actions"
+              style={{ marginTop: "0.9rem" }}
+            >
+              <p className="dashboard-settings-note" style={{ margin: 0, flexBasis: "100%" }}>
+                Dev only (`BILLING_DEV_BYPASS=1`): switch Free/Pro without Shopify
+                charges. Upgrade always uses Shopify Billing.
+              </p>
+              <fetcher.Form method="post">
+                <input type="hidden" name="intent" value="dev_plan" />
+                <input type="hidden" name="plan" value="free" />
+                <button
+                  type="submit"
+                  className="dashboard-btn dashboard-btn-ghost"
+                  disabled={isBusy || billing.plan === "free"}
+                >
+                  Switch to Free
+                </button>
+              </fetcher.Form>
+              <fetcher.Form method="post">
+                <input type="hidden" name="intent" value="dev_plan" />
+                <input type="hidden" name="plan" value="pro" />
+                <button
+                  type="submit"
+                  className="dashboard-btn dashboard-btn-primary"
+                  disabled={isBusy || billing.plan === "pro"}
+                >
+                  Switch to Pro
+                </button>
+              </fetcher.Form>
+            </div>
+          )}
         </section>
       </div>
 
@@ -286,11 +377,18 @@ export default function SettingsPage() {
         </p>
       </section>
 
-      <section className="dashboard-card">
+      <section className="dashboard-card dashboard-settings-support">
         <h2>Support &amp; legal</h2>
         <p className="dashboard-settings-note" style={{ marginTop: 0 }}>
           Questions or issues? Email{" "}
-          <a href="mailto:stefanpanov0@gmail.com">stefanpanov0@gmail.com</a>.
+          <a
+            href="mailto:stefanpanov0@gmail.com"
+            target="_blank"
+            rel="noreferrer"
+          >
+            stefanpanov0@gmail.com
+          </a>
+          .
         </p>
         <div className="dashboard-tools-actions">
           <a
@@ -312,6 +410,8 @@ export default function SettingsPage() {
           <a
             className="dashboard-btn dashboard-btn-ghost"
             href="mailto:stefanpanov0@gmail.com"
+            target="_blank"
+            rel="noreferrer"
           >
             Contact support
           </a>
