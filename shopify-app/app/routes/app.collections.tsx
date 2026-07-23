@@ -412,7 +412,7 @@ export default function CollectionsPage() {
                   onClick={() => runOne(collection.id)}
                 >
                   {loadingId === collection.id
-                    ? "Generating..."
+                    ? "Optimizing..."
                     : "Optimize with AI"}
                 </button>
               </div>
