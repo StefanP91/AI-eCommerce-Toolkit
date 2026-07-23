@@ -1,12 +1,10 @@
-FROM node:20-alpine
+FROM node:22-alpine
 RUN apk add --no-cache openssl
-
-EXPOSE 3000
 
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+# Render injects PORT at runtime — do not hardcode a conflicting value.
 
 COPY package.json package-lock.json* ./
 
@@ -17,4 +15,7 @@ COPY . .
 
 RUN npm run build && npm prune --omit=dev
 
-CMD ["npm", "run", "docker-start"]
+# Migrate then serve. Use shell so runtime $PORT is respected.
+CMD ["sh", "-c", "npx prisma migrate deploy && exec npx react-router-serve ./build/server/index.js"]
+
+EXPOSE 3000

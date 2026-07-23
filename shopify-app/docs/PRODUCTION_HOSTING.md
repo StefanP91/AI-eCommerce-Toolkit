@@ -27,14 +27,13 @@ Use the included [`Dockerfile`](../Dockerfile).
 
 ## Database
 
-Default Prisma schema uses **SQLite** via `DATABASE_URL` (see `.env.example`: `file:dev.sqlite`).
+Production uses **PostgreSQL** (`prisma/schema.prisma`).
 
-For production:
+1. Create a **Render PostgreSQL** instance.
+2. Copy **Internal Database URL** into the web service `DATABASE_URL`.
+3. On container start, `npm run docker-start` runs `prisma migrate deploy`.
 
-1. **Simplest:** mount a persistent volume and set `DATABASE_URL=file:/data/prod.sqlite` (see `fly.toml` / `docker-compose.yml`).
-2. **Preferred at scale:** switch `provider` to `postgresql` in `prisma/schema.prisma`, set `DATABASE_URL` to managed Postgres, run `npx prisma migrate deploy`.
-
-Migrations run on container start via `npm run docker-start` → `prisma migrate deploy`.
+Locally, set `DATABASE_URL` to the Render **External** URL (or a local Postgres). SQLite is no longer used.
 
 ## Shopify Partner URLs
 
