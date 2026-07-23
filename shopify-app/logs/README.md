@@ -1,3 +1,5 @@
 # Remote AppErrorLog pulls land here (JSONL).
-# Run locally: LOG_EXPORT_SECRET=... npm run logs:pull
-# Or let .github/workflows/pull-error-logs.yml commit updates.
+# Auto-sync:
+#   1) GitHub Action pulls from Render hourly (+ on main push) and commits here
+#   2) Cursor sessionStart hook copies this file from origin when remote changes
+# Manual: LOG_EXPORT_SECRET=... npm run logs:pull

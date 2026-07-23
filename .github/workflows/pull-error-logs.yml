@@ -1,14 +1,20 @@
-# Pull production error logs into the repo so they show up after git pull.
+# Pull production error logs into the repo so they show up after git pull / session sync.
 name: Pull error logs
 
 on:
   schedule:
-    # Every 6 hours
-    - cron: "20 */6 * * *"
+    # Every hour
+    - cron: "15 * * * *"
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: pull-error-logs
+  cancel-in-progress: true
 
 jobs:
   pull:
