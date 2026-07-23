@@ -10,33 +10,79 @@ export async function callGeminiJson(options: {
 
   const proxyUrl = process.env.GEMINI_PROXY_URL?.trim();
   const proxySecret = process.env.GEMINI_PROXY_SECRET?.trim();
+  let lastError: unknown;
 
-  // Prefer proxy when configured — Render EU IPs are often blocked by Gemini.
-  if (proxyUrl && proxySecret) {
-    const response = await fetch(proxyUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Gemini-Proxy-Secret": proxySecret,
-      },
-      body: JSON.stringify({
-        prompt: options.prompt,
-        system: options.system,
-        temperature: options.temperature ?? 0.5,
-        image: options.image,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = (await response.text()).slice(0, 300);
-      console.error("[gemini-proxy]", response.status, detail);
-      throw new Error(`AI generation failed (${response.status})`);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      if (proxyUrl && proxySecret) {
+        return await callViaProxy(proxyUrl, proxySecret, options);
+      }
+      return await callDirect(options);
+    } catch (error) {
+      lastError = error;
+      if (!shouldRetry(error) || attempt === 3) {
+        throw error;
+      }
+      const delayMs = attempt * 700;
+      console.warn(
+        `[gemini] attempt ${attempt} failed, retrying in ${delayMs}ms`,
+        error instanceof Error ? error.message : error,
+      );
+      await sleep(delayMs);
     }
-
-    const json = (await response.json()) as { text?: string };
-    return parseJson(json.text || "");
   }
 
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("AI generation failed");
+}
+
+async function callViaProxy(
+  proxyUrl: string,
+  proxySecret: string,
+  options: {
+    prompt: string;
+    system?: string;
+    temperature?: number;
+    image?: { mimeType: string; base64: string };
+  },
+): Promise<Record<string, unknown>> {
+  const response = await fetch(proxyUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Gemini-Proxy-Secret": proxySecret,
+    },
+    body: JSON.stringify({
+      prompt: options.prompt,
+      system: options.system,
+      temperature: options.temperature ?? 0.5,
+      image: options.image,
+    }),
+  });
+
+  const rawBody = await response.text();
+  if (!response.ok) {
+    console.error("[gemini-proxy]", response.status, rawBody.slice(0, 300));
+    throw new Error(`AI generation failed (${response.status})`);
+  }
+
+  let json: { text?: string; error?: string };
+  try {
+    json = JSON.parse(rawBody) as { text?: string; error?: string };
+  } catch {
+    throw new Error("AI generation failed (bad proxy response)");
+  }
+
+  return parseJson(json.text || "");
+}
+
+async function callDirect(options: {
+  prompt: string;
+  system?: string;
+  temperature?: number;
+  image?: { mimeType: string; base64: string };
+}): Promise<Record<string, unknown>> {
   const apiKey = process.env.GEMINI_API_KEY!.trim();
   const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
 
@@ -71,25 +117,54 @@ export async function callGeminiJson(options: {
     }),
   });
 
+  const detail = await response.text();
   if (!response.ok) {
-    const detail = (await response.text()).slice(0, 300);
-    console.error("[gemini]", response.status, detail);
+    console.error("[gemini]", response.status, detail.slice(0, 300));
     throw new Error(`AI generation failed (${response.status})`);
   }
 
-  const json = (await response.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  let json: {
+    candidates?: Array<{
+      content?: { parts?: Array<{ text?: string }> };
+      finishReason?: string;
+    }>;
+    promptFeedback?: { blockReason?: string };
   };
+  try {
+    json = JSON.parse(detail);
+  } catch {
+    throw new Error("AI generation failed (invalid upstream JSON)");
+  }
+
+  if (json.promptFeedback?.blockReason) {
+    throw new Error("AI generation failed (blocked)");
+  }
 
   const raw = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
   return parseJson(raw);
 }
 
+function shouldRetry(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /AI generation failed \((429|500|502|503|504)\)|fetch failed|ECONN|ETIMEDOUT|network|aborted/i.test(
+    message,
+  );
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function parseJson(raw: string): Record<string, unknown> {
+  const text = (raw || "").trim();
+  if (!text) {
+    throw new Error("AI returned invalid JSON");
+  }
+
   try {
-    return JSON.parse(raw) as Record<string, unknown>;
+    return JSON.parse(text) as Record<string, unknown>;
   } catch {
-    const match = raw.match(/\{[\s\S]*\}/);
+    const match = text.match(/\{[\s\S]*\}/);
     if (match) {
       return JSON.parse(match[0]) as Record<string, unknown>;
     }

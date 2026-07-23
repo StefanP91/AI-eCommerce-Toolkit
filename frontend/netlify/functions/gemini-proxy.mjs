@@ -17,6 +17,30 @@ function json(statusCode, body) {
   };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function callGemini(url, body, attempt = 1) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+
+  if (
+    !response.ok &&
+    [429, 500, 502, 503, 504].includes(response.status) &&
+    attempt < 3
+  ) {
+    await sleep(attempt * 600);
+    return callGemini(url, body, attempt + 1);
+  }
+
+  return { response, text };
+}
+
 export async function handler(event) {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: corsHeaders, body: "" };
@@ -74,20 +98,26 @@ export async function handler(event) {
   parts.push({ text: prompt });
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts }],
-      generationConfig: {
-        temperature:
-          typeof payload.temperature === "number" ? payload.temperature : 0.5,
-        responseMimeType: "application/json",
-      },
-    }),
-  });
+  const requestBody = {
+    contents: [{ role: "user", parts }],
+    generationConfig: {
+      temperature:
+        typeof payload.temperature === "number" ? payload.temperature : 0.5,
+      responseMimeType: "application/json",
+    },
+  };
 
-  const text = await response.text();
+  let upstreamResult;
+  try {
+    upstreamResult = await callGemini(url, requestBody);
+  } catch (error) {
+    return json(502, {
+      error: "Gemini network error",
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  const { response, text } = upstreamResult;
   if (!response.ok) {
     return json(502, {
       error: "Gemini upstream error",
@@ -103,8 +133,20 @@ export async function handler(event) {
     return json(502, { error: "Invalid Gemini response" });
   }
 
-  const raw =
-    upstream?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if (upstream?.promptFeedback?.blockReason) {
+    return json(422, {
+      error: "Gemini blocked the prompt",
+      detail: upstream.promptFeedback.blockReason,
+    });
+  }
+
+  const raw = upstream?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if (!raw.trim()) {
+    return json(502, {
+      error: "Gemini returned empty content",
+      finishReason: upstream?.candidates?.[0]?.finishReason || null,
+    });
+  }
 
   return json(200, { text: raw });
 }
