@@ -1,7 +1,7 @@
 /**
- * Reverse-proxy Shopify traffic to Render.
- * When Render is cold, return a branded loader (never the marketing site,
- * never Render's "WELCOME TO RENDER" page in Admin).
+ * Entry-only cold-start gate.
+ * Shows branded loader while Render sleeps; otherwise falls through to the
+ * redirect proxy (see netlify.toml). Must NOT wrap long AI POSTs.
  */
 const ORIGIN = "https://ai-ecommerce-shopify-app.onrender.com";
 
@@ -9,35 +9,31 @@ const WAKING_RE =
   /SERVICE WAKING UP|ALLOCATING COMPUTE RESOURCES|INCOMING HTTP REQUEST DETECTED|WELCOME TO RENDER/i;
 
 export default async (request, context) => {
-  const incoming = new URL(request.url);
-
-  // Let Netlify internals alone.
-  if (incoming.pathname.startsWith("/.netlify")) {
+  // Never gate mutations / data posts — Optimize lives here.
+  if (request.method !== "GET" && request.method !== "HEAD") {
     return context.next();
   }
 
+  const incoming = new URL(request.url);
   const target = new URL(incoming.pathname + incoming.search, ORIGIN);
+
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.set("accept-encoding", "identity");
   headers.set("x-forwarded-host", incoming.host);
   headers.set("x-forwarded-proto", "https");
-  headers.set("x-forwarded-for", request.headers.get("x-forwarded-for") || "");
-
-  /** @type {RequestInit} */
-  const init = {
-    method: request.method,
-    headers,
-    redirect: "manual",
-  };
-
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = await request.arrayBuffer();
-  }
 
   let upstream;
   try {
-    upstream = await fetch(target.toString(), init);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    upstream = await fetch(target.toString(), {
+      method: "GET",
+      headers,
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
   } catch {
     return loaderResponse();
   }
@@ -65,10 +61,8 @@ export default async (request, context) => {
     });
   }
 
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers: sanitizeHeaders(upstream.headers),
-  });
+  // Non-HTML entry — let the redirect proxy handle it.
+  return context.next();
 };
 
 function sanitizeHeaders(source) {
@@ -139,17 +133,7 @@ function loaderResponse() {
     </div>
   </div>
   <script>
-    (function () {
-      var n = 0;
-      var status = document.getElementById("status");
-      function tick() {
-        n += 1;
-        if (n > 2) status.textContent = "Still starting — almost there…";
-        // Same URL (keeps shop/host). Edge proxy serves the real app when ready.
-        window.location.reload();
-      }
-      setTimeout(tick, 2200);
-    })();
+    setTimeout(function () { window.location.reload(); }, 2200);
   </script>
 </body>
 </html>`;

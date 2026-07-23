@@ -4,9 +4,25 @@
 
 [build]
   publish = "public"
-  # No build step — edge function only.
   command = "echo shopify-proxy"
 
+# Cold-start loader ONLY on entry GETs (fast). Do NOT run edge on
+# /app/products actions — Optimize/AI needs longer than Edge allows.
 [[edge_functions]]
-  function = "origin-proxy"
-  path = "/*"
+  function = "cold-start-gate"
+  path = "/"
+
+[[edge_functions]]
+  function = "cold-start-gate"
+  path = "/app"
+
+[[edge_functions]]
+  function = "cold-start-gate"
+  path = "/app/"
+
+# Everything else (including Optimize POST) proxies to Render without Edge CPU/time limits.
+[[redirects]]
+  from = "/*"
+  to = "https://ai-ecommerce-shopify-app.onrender.com/:splat"
+  status = 200
+  force = true

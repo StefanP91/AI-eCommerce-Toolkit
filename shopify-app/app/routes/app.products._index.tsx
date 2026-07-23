@@ -60,12 +60,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
-  const formData = await request.formData();
-  const intent = String(formData.get("intent") || "single");
-  const shop = session.shop;
-
   try {
+    const { admin, session } = await authenticate.admin(request);
+    const formData = await request.formData();
+    const intent = String(formData.get("intent") || "single");
+    const shop = session.shop;
+
   if (intent === "bulk" || intent === "bulk_translate" || intent === "bulk_alt") {
     const pro = await requireProPlan(shop);
     if (!pro.allowed) return pro.deny;
@@ -144,17 +144,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     generated: result.generated,
   };
   } catch (error) {
+    // Auth handshakes must bubble (App Bridge bounce HTML / redirects).
+    if (error instanceof Response) throw error;
     const { logAppError } = await import("../lib/error-log.server");
     const { merchantAiError } = await import("../lib/merchant-errors");
     const message = merchantAiError(error);
     await logAppError({
-      shop,
       source: "products.action",
       message,
       detail: error instanceof Error ? error.stack || error.message : String(error),
-      path: `/app/products#${intent}`,
+      path: "/app/products",
     });
-    return { ok: false as const, error: message, intent: intent as "single" };
+    return { ok: false as const, error: message, intent: "single" as const };
   }
 };
 
