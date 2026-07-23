@@ -10,10 +10,10 @@ export async function purgeShopData(shop: string) {
     await clearShopBillingData(shop);
   } catch {
     await prisma.$executeRaw(
-      Prisma.sql`DELETE FROM "ShopPlan" WHERE shop = ${shop}`,
+      Prisma.sql`DELETE FROM "shopify"."ShopPlan" WHERE shop = ${shop}`,
     ).catch(() => undefined);
     await prisma.$executeRaw(
-      Prisma.sql`DELETE FROM "AiUsageDaily" WHERE shop = ${shop}`,
+      Prisma.sql`DELETE FROM "shopify"."AiUsageDaily" WHERE shop = ${shop}`,
     ).catch(() => undefined);
   }
 }

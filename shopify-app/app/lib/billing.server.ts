@@ -49,7 +49,8 @@ export function useTestCharges(): boolean {
 export function useDevBillingBypass(): boolean {
   // Never allow billing bypass in production — App Store / live shops must use Billing API.
   if (process.env.NODE_ENV === "production") return false;
-  return process.env.BILLING_DEV_BYPASS === "1";
+  const raw = (process.env.BILLING_DEV_BYPASS || "").trim();
+  return raw === "1" || raw.toLowerCase() === "true";
 }
 
 const PUBLIC_DISTRIBUTION_HELP =
@@ -71,13 +72,13 @@ function friendlyBillingError(message: string): string {
 export async function getShopBilling(shop: string): Promise<ShopPlanRow> {
   const rows = await prisma.$queryRaw<ShopPlanRow[]>(
     Prisma.sql`SELECT shop, plan, subscriptionId, subscriptionStatus, trialEndsAt
-      FROM "ShopPlan" WHERE shop = ${shop} LIMIT 1`,
+      FROM "shopify"."ShopPlan" WHERE shop = ${shop} LIMIT 1`,
   );
   if (rows[0]) return rows[0];
 
   const stamp = nowIso();
   await prisma.$executeRaw(
-    Prisma.sql`INSERT INTO "ShopPlan"
+    Prisma.sql`INSERT INTO "shopify"."ShopPlan"
       (shop, plan, subscriptionId, subscriptionStatus, trialEndsAt, createdAt, updatedAt)
       VALUES (${shop}, 'free', NULL, NULL, NULL, ${stamp}, ${stamp})`,
   );
@@ -99,7 +100,7 @@ async function upsertShopPlan(input: {
 }) {
   const stamp = nowIso();
   await prisma.$executeRaw(
-    Prisma.sql`INSERT INTO "ShopPlan"
+    Prisma.sql`INSERT INTO "shopify"."ShopPlan"
       (shop, plan, subscriptionId, subscriptionStatus, trialEndsAt, createdAt, updatedAt)
       VALUES (
         ${input.shop},
@@ -122,7 +123,7 @@ async function upsertShopPlan(input: {
 
 export async function getDailyUsage(shop: string, day = todayKey()) {
   const rows = await prisma.$queryRaw<Array<{ count: number | bigint }>>(
-    Prisma.sql`SELECT count FROM "AiUsageDaily" WHERE shop = ${shop} AND day = ${day} LIMIT 1`,
+    Prisma.sql`SELECT count FROM "shopify"."AiUsageDaily" WHERE shop = ${shop} AND day = ${day} LIMIT 1`,
   );
   const value = rows[0]?.count ?? 0;
   return typeof value === "bigint" ? Number(value) : value;
@@ -136,10 +137,10 @@ export async function incrementDailyUsage(
   const stamp = nowIso();
   const id = randomUUID();
   await prisma.$executeRaw(
-    Prisma.sql`INSERT INTO "AiUsageDaily" (id, shop, day, count, createdAt, updatedAt)
+    Prisma.sql`INSERT INTO "shopify"."AiUsageDaily" (id, shop, day, count, createdAt, updatedAt)
       VALUES (${id}, ${shop}, ${day}, ${amount}, ${stamp}, ${stamp})
       ON CONFLICT(shop, day) DO UPDATE SET
-        count = "AiUsageDaily".count + ${amount},
+        count = "shopify"."AiUsageDaily".count + ${amount},
         updatedAt = ${stamp}`,
   );
 }
@@ -243,24 +244,51 @@ export async function recordAiUsageIfFree(shop: string | undefined) {
   }
 }
 
+export async function buildBillingReturnUrl(
+  admin: ShopifyAdmin,
+  shop: string,
+  appPath = "/app/settings",
+) {
+  const path = appPath.startsWith("/") ? appPath : `/${appPath}`;
+
+  try {
+    const response = await admin.graphql(
+      `#graphql
+        query BillingReturnLaunchUrl {
+          currentAppInstallation {
+            launchUrl
+          }
+        }`,
+    );
+    const json = await response.json();
+    const launchUrl = String(
+      json.data?.currentAppInstallation?.launchUrl || "",
+    ).replace(/\/$/, "");
+
+    // Must return into Shopify Admin embed — tunnel-only URLs show a blank page.
+    if (launchUrl.includes("admin.shopify.com")) {
+      return `${launchUrl}${path}?billing=1`;
+    }
+  } catch {
+    // fall through to constructed Admin URL
+  }
+
+  const store = shop.replace(/\.myshopify\.com$/i, "");
+  const apiKey = process.env.SHOPIFY_API_KEY?.trim() || "";
+  return `https://admin.shopify.com/store/${store}/apps/${apiKey}${path}?billing=1`;
+}
+
 export async function createProSubscription(
   admin: ShopifyAdmin,
   shop: string,
   returnUrl: string,
-): Promise<{ confirmationUrl: string; subscriptionId: string }> {
-  if (useDevBillingBypass()) {
-    const subscriptionId = `gid://shopify/AppSubscription/dev-${shop}`;
-    await upsertShopPlan({
-      shop,
-      plan: "pro",
-      subscriptionId,
-      subscriptionStatus: "ACTIVE",
-    });
-    return {
-      confirmationUrl: returnUrl,
-      subscriptionId,
-    };
-  }
+): Promise<{
+  confirmationUrl: string;
+  subscriptionId: string;
+  usedDevBypass: boolean;
+}> {
+  // Always use Shopify Billing API for Upgrade.
+  // BILLING_DEV_BYPASS only enables the Settings Free/Pro toggle — it must not skip checkout.
 
   const response = await admin.graphql(
     `#graphql
@@ -341,13 +369,18 @@ export async function createProSubscription(
     subscriptionStatus: "PENDING",
   });
 
-  return { confirmationUrl, subscriptionId };
+  return { confirmationUrl, subscriptionId, usedDevBypass: false };
 }
 
 export async function syncSubscriptionFromShopify(
   admin: ShopifyAdmin,
   shop: string,
 ) {
+  // Local bypass: plan is controlled in Settings (dev toggle), not Shopify Billing.
+  if (useDevBillingBypass()) {
+    return getShopBilling(shop);
+  }
+
   const response = await admin.graphql(
     `#graphql
       query CurrentAppSubscriptions {
@@ -391,6 +424,21 @@ export async function syncSubscriptionFromShopify(
   });
 }
 
+/** Local-only Free/Pro switch (requires BILLING_DEV_BYPASS=1, never in production). */
+export async function setDevPlan(shop: string, plan: ShopPlanId) {
+  if (!useDevBillingBypass()) {
+    throw new Error("Dev plan switch is only available with BILLING_DEV_BYPASS=1");
+  }
+  const next = plan === "pro" ? "pro" : "free";
+  return upsertShopPlan({
+    shop,
+    plan: next,
+    subscriptionId:
+      next === "pro" ? `gid://shopify/AppSubscription/dev-${shop}` : null,
+    subscriptionStatus: next === "pro" ? "ACTIVE" : "INACTIVE",
+  });
+}
+
 export async function applySubscriptionWebhook(input: {
   shop: string;
   subscriptionId?: string | null;
@@ -409,10 +457,10 @@ export async function applySubscriptionWebhook(input: {
 
 export async function clearShopBillingData(shop: string) {
   await prisma.$executeRaw(
-    Prisma.sql`DELETE FROM "ShopPlan" WHERE shop = ${shop}`,
+    Prisma.sql`DELETE FROM "shopify"."ShopPlan" WHERE shop = ${shop}`,
   );
   await prisma.$executeRaw(
-    Prisma.sql`DELETE FROM "AiUsageDaily" WHERE shop = ${shop}`,
+    Prisma.sql`DELETE FROM "shopify"."AiUsageDaily" WHERE shop = ${shop}`,
   );
 }
 

@@ -8,6 +8,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["shopify"]
 }
 
 model Session {
@@ -28,6 +29,8 @@ model Session {
   emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+
+  @@schema("shopify")
 }
 
 model ActivityRun {
@@ -42,6 +45,7 @@ model ActivityRun {
   createdAt  DateTime @default(now())
 
   @@index([shop, createdAt])
+  @@schema("shopify")
 }
 
 model ShopPlan {
@@ -52,6 +56,8 @@ model ShopPlan {
   trialEndsAt        DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+
+  @@schema("shopify")
 }
 
 model AiUsageDaily {
@@ -64,4 +70,5 @@ model AiUsageDaily {
 
   @@unique([shop, day])
   @@index([shop, day])
+  @@schema("shopify")
 }

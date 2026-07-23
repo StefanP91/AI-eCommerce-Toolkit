@@ -15,8 +15,8 @@ COPY . .
 
 RUN npm run build && npm prune --omit=dev
 
-# Shared Render Postgres already has Laravel tables (P3005 on migrate deploy).
-# db push creates only missing Shopify tables without requiring an empty database.
-CMD ["sh", "-c", "npx prisma db push --skip-generate && exec npx react-router-serve ./build/server/index.js"]
+# Isolate Shopify tables in schema "shopify" so Laravel public tables are untouched.
+# Do NOT use --accept-data-loss (would risk Laravel data on shared DB).
+CMD ["sh", "-c", "printf '%s\\n' 'CREATE SCHEMA IF NOT EXISTS \"shopify\";' | npx prisma db execute --stdin && npx prisma db push --skip-generate && exec npx react-router-serve ./build/server/index.js"]
 
 EXPOSE 3000

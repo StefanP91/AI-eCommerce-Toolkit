@@ -1,5 +1,8 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "shopify";
+
 -- CreateTable
-CREATE TABLE "Session" (
+CREATE TABLE "shopify"."Session" (
     "id" TEXT NOT NULL,
     "shop" TEXT NOT NULL,
     "state" TEXT NOT NULL,
@@ -22,7 +25,7 @@ CREATE TABLE "Session" (
 );
 
 -- CreateTable
-CREATE TABLE "ActivityRun" (
+CREATE TABLE "shopify"."ActivityRun" (
     "id" TEXT NOT NULL,
     "shop" TEXT NOT NULL,
     "resource" TEXT NOT NULL,
@@ -37,7 +40,7 @@ CREATE TABLE "ActivityRun" (
 );
 
 -- CreateTable
-CREATE TABLE "ShopPlan" (
+CREATE TABLE "shopify"."ShopPlan" (
     "shop" TEXT NOT NULL,
     "plan" TEXT NOT NULL DEFAULT 'free',
     "subscriptionId" TEXT,
@@ -50,7 +53,7 @@ CREATE TABLE "ShopPlan" (
 );
 
 -- CreateTable
-CREATE TABLE "AiUsageDaily" (
+CREATE TABLE "shopify"."AiUsageDaily" (
     "id" TEXT NOT NULL,
     "shop" TEXT NOT NULL,
     "day" TEXT NOT NULL,
@@ -62,10 +65,10 @@ CREATE TABLE "AiUsageDaily" (
 );
 
 -- CreateIndex
-CREATE INDEX "ActivityRun_shop_createdAt_idx" ON "ActivityRun"("shop", "createdAt");
+CREATE INDEX "ActivityRun_shop_createdAt_idx" ON "shopify"."ActivityRun"("shop", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "AiUsageDaily_shop_day_idx" ON "AiUsageDaily"("shop", "day");
+CREATE INDEX "AiUsageDaily_shop_day_idx" ON "shopify"."AiUsageDaily"("shop", "day");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "AiUsageDaily_shop_day_key" ON "AiUsageDaily"("shop", "day");
+CREATE UNIQUE INDEX "AiUsageDaily_shop_day_key" ON "shopify"."AiUsageDaily"("shop", "day");
