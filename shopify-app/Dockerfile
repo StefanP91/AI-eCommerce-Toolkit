@@ -15,7 +15,8 @@ COPY . .
 
 RUN npm run build && npm prune --omit=dev
 
-# Migrate then serve. Use shell so runtime $PORT is respected.
-CMD ["sh", "-c", "npx prisma migrate deploy && exec npx react-router-serve ./build/server/index.js"]
+# Shared Render Postgres already has Laravel tables (P3005 on migrate deploy).
+# db push creates only missing Shopify tables without requiring an empty database.
+CMD ["sh", "-c", "npx prisma db push --skip-generate && exec npx react-router-serve ./build/server/index.js"]
 
 EXPOSE 3000
