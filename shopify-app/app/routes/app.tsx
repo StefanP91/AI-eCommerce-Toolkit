@@ -1,5 +1,11 @@
 import type { HeadersFunction, LinksFunction, LoaderFunctionArgs } from "react-router";
-import { Link, Outlet, useLoaderData, useRouteError } from "react-router";
+import {
+  Link,
+  Outlet,
+  isRouteErrorResponse,
+  useLoaderData,
+  useRouteError,
+} from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { NavMenu } from "@shopify/app-bridge-react";
@@ -46,7 +52,51 @@ export default function App() {
 }
 
 export function ErrorBoundary() {
-  return boundary.error(useRouteError());
+  const error = useRouteError();
+
+  // React Router may reconstruct auth bounces without ErrorResponse constructor —
+  // still render App Bridge HTML so the embedded admin can complete session handshake.
+  if (
+    isRouteErrorResponse(error) &&
+    typeof error.data === "string" &&
+    error.data.includes("cdn.shopify.com/shopifycloud/app-bridge")
+  ) {
+    return <div dangerouslySetInnerHTML={{ __html: error.data }} />;
+  }
+
+  try {
+    return boundary.error(error);
+  } catch {
+    const message =
+      error instanceof Error
+        ? error.message
+        : isRouteErrorResponse(error)
+          ? `${error.status} ${error.statusText || ""}`.trim()
+          : "Unexpected application error";
+    const detail =
+      isRouteErrorResponse(error) && typeof error.data === "string"
+        ? error.data
+        : error instanceof Error && error.stack
+          ? error.stack
+          : "";
+
+    return (
+      <div style={{ padding: 24, fontFamily: "sans-serif" }}>
+        <h1>Application Error</h1>
+        <pre
+          style={{
+            whiteSpace: "pre-wrap",
+            background: "#fbeae5",
+            padding: 16,
+            borderRadius: 8,
+          }}
+        >
+          {message}
+          {detail ? `\n\n${detail}` : ""}
+        </pre>
+      </div>
+    );
+  }
 }
 
 export const headers: HeadersFunction = (headersArgs) => {

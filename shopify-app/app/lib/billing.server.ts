@@ -1,5 +1,3 @@
-import { Prisma } from "@prisma/client";
-import { randomUUID } from "node:crypto";
 import prisma from "../db.server";
 import {
   FREE_DAILY_AI_LIMIT,
@@ -36,10 +34,6 @@ function todayKey(date = new Date()): string {
   return date.toISOString().slice(0, 10);
 }
 
-function nowIso() {
-  return new Date().toISOString();
-}
-
 export function useTestCharges(): boolean {
   if (process.env.BILLING_TEST_CHARGES === "0") return false;
   if (process.env.BILLING_TEST_CHARGES === "1") return true;
@@ -65,31 +59,19 @@ function friendlyBillingError(message: string): string {
   return message;
 }
 
-/**
- * Billing tables are accessed via raw SQL so Settings keeps working even when a
- * stale Vite/Prisma client is missing the generated `shopPlan` delegates.
- */
 export async function getShopBilling(shop: string): Promise<ShopPlanRow> {
-  const rows = await prisma.$queryRaw<ShopPlanRow[]>(
-    Prisma.sql`SELECT shop, plan, subscriptionId, subscriptionStatus, trialEndsAt
-      FROM "shopify"."ShopPlan" WHERE shop = ${shop} LIMIT 1`,
-  );
-  if (rows[0]) return rows[0];
+  const existing = await prisma.shopPlan.findUnique({ where: { shop } });
+  if (existing) return existing;
 
-  const stamp = nowIso();
-  await prisma.$executeRaw(
-    Prisma.sql`INSERT INTO "shopify"."ShopPlan"
-      (shop, plan, subscriptionId, subscriptionStatus, trialEndsAt, createdAt, updatedAt)
-      VALUES (${shop}, 'free', NULL, NULL, NULL, ${stamp}, ${stamp})`,
-  );
-
-  return {
-    shop,
-    plan: "free",
-    subscriptionId: null,
-    subscriptionStatus: null,
-    trialEndsAt: null,
-  };
+  return prisma.shopPlan.create({
+    data: {
+      shop,
+      plan: "free",
+      subscriptionId: null,
+      subscriptionStatus: null,
+      trialEndsAt: null,
+    },
+  });
 }
 
 async function upsertShopPlan(input: {
@@ -98,35 +80,29 @@ async function upsertShopPlan(input: {
   subscriptionId?: string | null;
   subscriptionStatus?: string | null;
 }) {
-  const stamp = nowIso();
-  await prisma.$executeRaw(
-    Prisma.sql`INSERT INTO "shopify"."ShopPlan"
-      (shop, plan, subscriptionId, subscriptionStatus, trialEndsAt, createdAt, updatedAt)
-      VALUES (
-        ${input.shop},
-        ${input.plan},
-        ${input.subscriptionId ?? null},
-        ${input.subscriptionStatus ?? null},
-        NULL,
-        ${stamp},
-        ${stamp}
-      )
-      ON CONFLICT(shop) DO UPDATE SET
-        plan = excluded.plan,
-        subscriptionId = excluded.subscriptionId,
-        subscriptionStatus = excluded.subscriptionStatus,
-        updatedAt = excluded.updatedAt`,
-  );
-
-  return getShopBilling(input.shop);
+  return prisma.shopPlan.upsert({
+    where: { shop: input.shop },
+    create: {
+      shop: input.shop,
+      plan: input.plan,
+      subscriptionId: input.subscriptionId ?? null,
+      subscriptionStatus: input.subscriptionStatus ?? null,
+      trialEndsAt: null,
+    },
+    update: {
+      plan: input.plan,
+      subscriptionId: input.subscriptionId ?? null,
+      subscriptionStatus: input.subscriptionStatus ?? null,
+    },
+  });
 }
 
 export async function getDailyUsage(shop: string, day = todayKey()) {
-  const rows = await prisma.$queryRaw<Array<{ count: number | bigint }>>(
-    Prisma.sql`SELECT count FROM "shopify"."AiUsageDaily" WHERE shop = ${shop} AND day = ${day} LIMIT 1`,
-  );
-  const value = rows[0]?.count ?? 0;
-  return typeof value === "bigint" ? Number(value) : value;
+  const row = await prisma.aiUsageDaily.findUnique({
+    where: { shop_day: { shop, day } },
+    select: { count: true },
+  });
+  return row?.count ?? 0;
 }
 
 export async function incrementDailyUsage(
@@ -134,15 +110,11 @@ export async function incrementDailyUsage(
   amount = 1,
   day = todayKey(),
 ) {
-  const stamp = nowIso();
-  const id = randomUUID();
-  await prisma.$executeRaw(
-    Prisma.sql`INSERT INTO "shopify"."AiUsageDaily" (id, shop, day, count, createdAt, updatedAt)
-      VALUES (${id}, ${shop}, ${day}, ${amount}, ${stamp}, ${stamp})
-      ON CONFLICT(shop, day) DO UPDATE SET
-        count = "shopify"."AiUsageDaily".count + ${amount},
-        updatedAt = ${stamp}`,
-  );
+  await prisma.aiUsageDaily.upsert({
+    where: { shop_day: { shop, day } },
+    create: { shop, day, count: amount },
+    update: { count: { increment: amount } },
+  });
 }
 
 export async function canUseAi(shop: string): Promise<AiAccess> {
@@ -456,12 +428,8 @@ export async function applySubscriptionWebhook(input: {
 }
 
 export async function clearShopBillingData(shop: string) {
-  await prisma.$executeRaw(
-    Prisma.sql`DELETE FROM "shopify"."ShopPlan" WHERE shop = ${shop}`,
-  );
-  await prisma.$executeRaw(
-    Prisma.sql`DELETE FROM "shopify"."AiUsageDaily" WHERE shop = ${shop}`,
-  );
+  await prisma.shopPlan.deleteMany({ where: { shop } });
+  await prisma.aiUsageDaily.deleteMany({ where: { shop } });
 }
 
 export function planSummary(access: AiAccess) {

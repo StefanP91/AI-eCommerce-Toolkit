@@ -6,7 +6,8 @@ application_url = "https://ai-ecommerce-shopify-app.onrender.com"
 embedded = true
 
 [build]
-automatically_update_urls_on_dev = true
+# Keep production Render URLs — do not let `shopify app dev` overwrite them.
+automatically_update_urls_on_dev = false
 include_config_on_deploy = true
 
 [webhooks]

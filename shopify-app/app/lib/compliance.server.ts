@@ -1,4 +1,3 @@
-import { Prisma } from "@prisma/client";
 import prisma from "../db.server";
 import { clearShopBillingData } from "./billing.server";
 
@@ -6,14 +5,5 @@ import { clearShopBillingData } from "./billing.server";
 export async function purgeShopData(shop: string) {
   await prisma.session.deleteMany({ where: { shop } }).catch(() => undefined);
   await prisma.activityRun.deleteMany({ where: { shop } }).catch(() => undefined);
-  try {
-    await clearShopBillingData(shop);
-  } catch {
-    await prisma.$executeRaw(
-      Prisma.sql`DELETE FROM "shopify"."ShopPlan" WHERE shop = ${shop}`,
-    ).catch(() => undefined);
-    await prisma.$executeRaw(
-      Prisma.sql`DELETE FROM "shopify"."AiUsageDaily" WHERE shop = ${shop}`,
-    ).catch(() => undefined);
-  }
+  await clearShopBillingData(shop).catch(() => undefined);
 }
