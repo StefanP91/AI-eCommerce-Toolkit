@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
+  applyCollectionGenerated,
   fetchCollections,
   optimizeCollectionById,
 } from "../lib/collections.server";
@@ -17,6 +18,7 @@ import { useSequentialBulk } from "../hooks/useSequentialBulk";
 import { AiQuotaBanner } from "../components/AiQuotaBanner";
 import { UpgradeToProButton } from "../components/UpgradeToProButton";
 import { canUseAi, requireProPlan } from "../lib/billing.server";
+import { isGeminiConfigured } from "../lib/gemini.server";
 
 export const MAX_BULK_COLLECTIONS = 20;
 
@@ -29,7 +31,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     collections,
     search,
-    aiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
+    aiConfigured: isGeminiConfigured(),
     maxBulk: MAX_BULK_COLLECTIONS,
     billing: await canUseAi(session.shop),
   };
@@ -57,7 +59,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const results = [];
     for (const collectionId of collectionIds) {
-      results.push(await optimizeCollectionById(admin, collectionId, shop));
+      results.push(
+        await optimizeCollectionById(admin, collectionId, shop, { apply: true }),
+      );
     }
 
     const succeeded = results.filter((result) => result.ok).length;
@@ -82,7 +86,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: false as const, error: "Missing collection id" };
   }
 
-  const result = await optimizeCollectionById(admin, collectionId, shop);
+  if (intent === "apply") {
+    const generated = {
+      title: String(formData.get("title") || ""),
+      descriptionHtml: String(formData.get("descriptionHtml") || ""),
+      metaTitle: String(formData.get("metaTitle") || ""),
+      metaDescription: String(formData.get("metaDescription") || ""),
+    };
+    if (!generated.title.trim()) {
+      return { ok: false as const, error: "Nothing to apply — generate first" };
+    }
+    const result = await applyCollectionGenerated(
+      admin,
+      collectionId,
+      generated,
+      shop,
+    );
+    if (!result.ok) {
+      return { ok: false as const, error: result.error };
+    }
+    return {
+      ok: true as const,
+      intent: "apply" as const,
+      title: result.title,
+      applied: true as const,
+      generated: result.generated,
+    };
+  }
+
+  const result = await optimizeCollectionById(admin, collectionId, shop, {
+    apply: false,
+  });
   if (!result.ok) {
     return { ok: false as const, error: result.error };
   }
@@ -91,6 +125,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     ok: true as const,
     intent: "single" as const,
     title: result.title,
+    applied: false as const,
+    collectionId: result.collectionId,
     generated: result.generated,
   };
 };
@@ -153,12 +189,16 @@ export default function CollectionsPage() {
     }
 
     if (fetcher.data.ok) {
-      shopify.toast.show(
-        fetcher.data.title
-          ? `Optimized: ${fetcher.data.title}`
-          : "Collection optimized",
-      );
-      revalidator.revalidate();
+      if (fetcher.data.intent === "apply") {
+        shopify.toast.show(
+          fetcher.data.title
+            ? `Applied: ${fetcher.data.title}`
+            : "Applied to collection",
+        );
+        revalidator.revalidate();
+      } else if (fetcher.data.intent === "single") {
+        shopify.toast.show("Draft ready — review and apply");
+      }
     } else if (fetcher.data.error) {
       shopify.toast.show(fetcher.data.error, { isError: true });
     }
@@ -181,6 +221,25 @@ export default function CollectionsPage() {
     const formData = new FormData();
     formData.set("intent", "single");
     formData.set("collectionId", collectionId);
+    fetcher.submit(formData, { method: "post" });
+  };
+
+  const applyDraft = () => {
+    if (
+      !fetcher.data?.ok ||
+      fetcher.data.intent !== "single" ||
+      !fetcher.data.generated ||
+      !("collectionId" in fetcher.data)
+    ) {
+      return;
+    }
+    const formData = new FormData();
+    formData.set("intent", "apply");
+    formData.set("collectionId", String(fetcher.data.collectionId));
+    formData.set("title", fetcher.data.generated.title);
+    formData.set("descriptionHtml", fetcher.data.generated.descriptionHtml);
+    formData.set("metaTitle", fetcher.data.generated.metaTitle);
+    formData.set("metaDescription", fetcher.data.generated.metaDescription);
     fetcher.submit(formData, { method: "post" });
   };
 
@@ -363,20 +422,52 @@ export default function CollectionsPage() {
       </div>
 
       {fetcher.data?.ok &&
-        fetcher.data.intent === "single" &&
+        (fetcher.data.intent === "single" || fetcher.data.intent === "apply") &&
         fetcher.data.generated && (
           <section className="dashboard-card" style={{ marginTop: "1rem" }}>
             <h2>Last result</h2>
-            <p>
-              <strong>Title:</strong> {fetcher.data.generated.title}
-            </p>
-            <p>
-              <strong>Meta title:</strong> {fetcher.data.generated.metaTitle}
-            </p>
-            <p style={{ marginBottom: 0 }}>
-              <strong>Meta description:</strong>{" "}
-              {fetcher.data.generated.metaDescription}
-            </p>
+            <div className="dashboard-tools-result">
+              <p style={{ margin: 0 }}>
+                <strong>Title:</strong> {fetcher.data.generated.title}
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong>Meta title:</strong> {fetcher.data.generated.metaTitle}
+              </p>
+              <div>
+                <strong>Meta description:</strong>
+                <p className="dashboard-result-text">
+                  {fetcher.data.generated.metaDescription}
+                </p>
+              </div>
+              <div>
+                <strong>Description:</strong>
+                <div
+                  className="dashboard-tools-html"
+                  dangerouslySetInnerHTML={{
+                    __html: fetcher.data.generated.descriptionHtml,
+                  }}
+                />
+              </div>
+              {fetcher.data.intent === "single" && (
+                <div className="dashboard-tools-actions" style={{ marginBottom: 0 }}>
+                  <button
+                    type="button"
+                    className="dashboard-btn dashboard-btn-primary"
+                    disabled={isBusy}
+                    onClick={applyDraft}
+                  >
+                    {isBusy && fetcher.formData?.get("intent") === "apply"
+                      ? "Applying..."
+                      : "Apply to collection"}
+                  </button>
+                </div>
+              )}
+              {fetcher.data.intent === "apply" && (
+                <p className="dashboard-settings-note" style={{ margin: 0 }}>
+                  Saved to Shopify.
+                </p>
+              )}
+            </div>
           </section>
         )}
     </>

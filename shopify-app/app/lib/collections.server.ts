@@ -61,12 +61,19 @@ export async function optimizeCollectionById(
   admin: ShopifyAdmin,
   collectionId: string,
   shop?: string,
+  options: { apply?: boolean } = {},
 ): Promise<
   | {
       ok: true;
       collectionId: string;
       title: string;
-      generated: { title: string; descriptionHtml: string; metaTitle: string; metaDescription: string };
+      applied: boolean;
+      generated: {
+        title: string;
+        descriptionHtml: string;
+        metaTitle: string;
+        metaDescription: string;
+      };
     }
   | {
       ok: false;
@@ -78,6 +85,7 @@ export async function optimizeCollectionById(
       limit?: number;
     }
 > {
+  const shouldApply = options.apply === true;
   const access = await requireAiAccess(shop);
   if (!access.allowed) {
     const result = {
@@ -221,6 +229,61 @@ Rules:
     return result;
   }
 
+  await recordAiUsageIfFree(shop);
+
+  if (!shouldApply) {
+    if (shop) {
+      await logActivityRun({
+        shop,
+        resource: "collection",
+        resourceId: collectionId,
+        title: generated.title,
+        action: "collection_optimize_preview",
+        status: "Success",
+      });
+    }
+    return {
+      ok: true as const,
+      collectionId,
+      title: generated.title,
+      applied: false,
+      generated,
+    };
+  }
+
+  return applyCollectionGenerated(admin, collectionId, generated, shop);
+}
+
+export async function applyCollectionGenerated(
+  admin: ShopifyAdmin,
+  collectionId: string,
+  generated: {
+    title: string;
+    descriptionHtml: string;
+    metaTitle: string;
+    metaDescription: string;
+  },
+  shop?: string,
+): Promise<
+  | {
+      ok: true;
+      collectionId: string;
+      title: string;
+      applied: true;
+      generated: {
+        title: string;
+        descriptionHtml: string;
+        metaTitle: string;
+        metaDescription: string;
+      };
+    }
+  | {
+      ok: false;
+      collectionId: string;
+      title?: string;
+      error: string;
+    }
+> {
   const updateResponse = await admin.graphql(
     `#graphql
       mutation UpdateCollection($input: CollectionInput!) {
@@ -257,7 +320,7 @@ Rules:
     const result = {
       ok: false as const,
       collectionId,
-      title: collection.title,
+      title: generated.title,
       error: errors.map((e: { message: string }) => e.message).join(", "),
     };
     if (shop) {
@@ -265,7 +328,7 @@ Rules:
         shop,
         resource: "collection",
         resourceId: collectionId,
-        title: collection.title,
+        title: generated.title,
         action: "collection_optimize",
         status: "Fail",
         error: result.error,
@@ -274,26 +337,25 @@ Rules:
     return result;
   }
 
-  const result = {
-    ok: true as const,
-    collectionId,
-    title:
-      updateJson.data?.collectionUpdate?.collection?.title || generated.title,
-    generated,
-  };
-
-  await recordAiUsageIfFree(shop);
+  const title =
+    updateJson.data?.collectionUpdate?.collection?.title || generated.title;
 
   if (shop) {
     await logActivityRun({
       shop,
       resource: "collection",
       resourceId: collectionId,
-      title: result.title,
+      title,
       action: "collection_optimize",
       status: "Success",
     });
   }
 
-  return result;
+  return {
+    ok: true as const,
+    collectionId,
+    title,
+    applied: true,
+    generated,
+  };
 }
