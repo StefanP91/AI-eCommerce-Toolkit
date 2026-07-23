@@ -413,7 +413,7 @@ export default function CollectionsPage() {
                 >
                   {loadingId === collection.id
                     ? "Generating..."
-                    : "Generate with AI"}
+                    : "Optimize with AI"}
                 </button>
               </div>
             </div>

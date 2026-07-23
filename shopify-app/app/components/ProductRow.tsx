@@ -75,7 +75,7 @@ export function ProductRow({
           disabled={isBusy}
           onClick={() => onGenerate(product.id)}
         >
-          {thisLoading ? "Generating..." : "Generate with AI"}
+          {thisLoading ? "Optimizing..." : "Optimize with AI"}
         </button>
         <button
           type="button"
