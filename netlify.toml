@@ -8,6 +8,12 @@
 # Keep SPA fallback here as well for environments that only read toml.
 
 [[redirects]]
+  from = "/api/gemini"
+  to = "/.netlify/functions/gemini-proxy"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/sitemap.xml"
   to = "/.netlify/functions/sitemap"
   status = 200

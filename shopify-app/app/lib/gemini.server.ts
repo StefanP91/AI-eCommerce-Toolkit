@@ -4,12 +4,41 @@ export async function callGeminiJson(options: {
   temperature?: number;
   image?: { mimeType: string; base64: string };
 }): Promise<Record<string, unknown>> {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
-
-  if (!apiKey) {
+  if (!isGeminiConfigured()) {
     throw new Error("AI generation is not configured");
   }
+
+  const proxyUrl = process.env.GEMINI_PROXY_URL?.trim();
+  const proxySecret = process.env.GEMINI_PROXY_SECRET?.trim();
+
+  // Prefer proxy when configured — Render EU IPs are often blocked by Gemini.
+  if (proxyUrl && proxySecret) {
+    const response = await fetch(proxyUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Gemini-Proxy-Secret": proxySecret,
+      },
+      body: JSON.stringify({
+        prompt: options.prompt,
+        system: options.system,
+        temperature: options.temperature ?? 0.5,
+        image: options.image,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 300);
+      console.error("[gemini-proxy]", response.status, detail);
+      throw new Error(`AI generation failed (${response.status})`);
+    }
+
+    const json = (await response.json()) as { text?: string };
+    return parseJson(json.text || "");
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY!.trim();
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
 
   const parts: Array<
     | { text: string }
@@ -87,5 +116,8 @@ export function clip(value: string, max: number): string {
 }
 
 export function isGeminiConfigured(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY?.trim());
+  const proxyReady =
+    Boolean(process.env.GEMINI_PROXY_URL?.trim()) &&
+    Boolean(process.env.GEMINI_PROXY_SECRET?.trim());
+  return proxyReady || Boolean(process.env.GEMINI_API_KEY?.trim());
 }

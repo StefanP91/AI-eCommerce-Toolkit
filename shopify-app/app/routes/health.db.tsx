@@ -12,6 +12,11 @@ export const loader = async (_args: LoaderFunctionArgs) => {
     hasApiSecret: Boolean(process.env.SHOPIFY_API_SECRET),
     hasGeminiKey: isGeminiConfigured(),
     geminiModel: process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
+    usesGeminiProxy: Boolean(
+      process.env.GEMINI_PROXY_URL?.trim() &&
+        process.env.GEMINI_PROXY_SECRET?.trim(),
+    ),
+    geminiProxyUrl: process.env.GEMINI_PROXY_URL?.trim() || null,
     appUrl: process.env.SHOPIFY_APP_URL || null,
     scopes: process.env.SCOPES || null,
   };
@@ -46,7 +51,36 @@ export const loader = async (_args: LoaderFunctionArgs) => {
       error instanceof Error ? error.message : String(error);
   }
 
-  if (isGeminiConfigured()) {
+  if (
+    process.env.GEMINI_PROXY_URL?.trim() &&
+    process.env.GEMINI_PROXY_SECRET?.trim()
+  ) {
+    try {
+      const response = await fetch(process.env.GEMINI_PROXY_URL.trim(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Gemini-Proxy-Secret": process.env.GEMINI_PROXY_SECRET.trim(),
+        },
+        body: JSON.stringify({
+          prompt:
+            'Return ONLY JSON: {"ok":true,"ping":"health"}',
+          temperature: 0,
+        }),
+      });
+      checks.geminiReachable = response.ok;
+      checks.geminiStatus = response.status;
+      if (!response.ok) {
+        checks.ok = false;
+        checks.geminiError = (await response.text()).slice(0, 180);
+      }
+    } catch (error) {
+      checks.ok = false;
+      checks.geminiReachable = false;
+      checks.geminiError =
+        error instanceof Error ? error.message : String(error);
+    }
+  } else if (isGeminiConfigured()) {
     const apiKey = process.env.GEMINI_API_KEY!.trim();
     const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
     try {
@@ -70,7 +104,7 @@ export const loader = async (_args: LoaderFunctionArgs) => {
   } else {
     checks.ok = false;
     checks.geminiReachable = false;
-    checks.geminiError = "GEMINI_API_KEY missing on host";
+    checks.geminiError = "GEMINI_API_KEY / GEMINI_PROXY_URL missing on host";
   }
 
   return Response.json(checks, { status: checks.ok ? 200 : 503 });
