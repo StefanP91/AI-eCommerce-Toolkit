@@ -2,30 +2,46 @@ import { PassThrough } from "stream";
 import { renderToPipeableStream } from "react-dom/server";
 import { ServerRouter } from "react-router";
 import { createReadableStreamFromReadable } from "@react-router/node";
-import { type EntryContext } from "react-router";
+import { type EntryContext, type HandleErrorFunction } from "react-router";
 import { isbot } from "isbot";
 import { addDocumentResponseHeaders } from "./shopify.server";
+import { logAppError } from "./lib/error-log.server";
 
 export const streamTimeout = 5000;
+
+/** Global server error sink — every uncaught loader/action/render error. */
+export const handleError: HandleErrorFunction = (error, { request }) => {
+  if (request.signal.aborted) return;
+  if (error instanceof Response) return;
+
+  const message =
+    error instanceof Error ? error.message : "Unexpected Server Error";
+  const detail =
+    error instanceof Error ? error.stack || error.message : String(error);
+
+  void logAppError({
+    source: "server.handleError",
+    message,
+    detail,
+    path: new URL(request.url).pathname,
+  });
+
+  console.error("[handleError]", request.method, request.url, error);
+};
 
 export default async function handleRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
-  reactRouterContext: EntryContext
+  reactRouterContext: EntryContext,
 ) {
   addDocumentResponseHeaders(request, responseHeaders);
   const userAgent = request.headers.get("user-agent");
-  const callbackName = isbot(userAgent ?? '')
-    ? "onAllReady"
-    : "onShellReady";
+  const callbackName = isbot(userAgent ?? "") ? "onAllReady" : "onShellReady";
 
   return new Promise((resolve, reject) => {
     const { pipe, abort } = renderToPipeableStream(
-      <ServerRouter
-        context={reactRouterContext}
-        url={request.url}
-      />,
+      <ServerRouter context={reactRouterContext} url={request.url} />,
       {
         [callbackName]: () => {
           const body = new PassThrough();
@@ -36,22 +52,33 @@ export default async function handleRequest(
             new Response(stream, {
               headers: responseHeaders,
               status: responseStatusCode,
-            })
+            }),
           );
           pipe(body);
         },
         onShellError(error) {
+          void logAppError({
+            source: "server.onShellError",
+            message:
+              error instanceof Error ? error.message : "Shell render error",
+            detail: error instanceof Error ? error.stack || null : String(error),
+            path: new URL(request.url).pathname,
+          });
           reject(error);
         },
         onError(error) {
           responseStatusCode = 500;
+          void logAppError({
+            source: "server.onError",
+            message: error instanceof Error ? error.message : "Render error",
+            detail: error instanceof Error ? error.stack || null : String(error),
+            path: new URL(request.url).pathname,
+          });
           console.error(error);
         },
-      }
+      },
     );
 
-    // Automatically timeout the React renderer after 6 seconds, which ensures
-    // React has enough time to flush down the rejected boundary contents
     setTimeout(abort, streamTimeout + 1000);
   });
 }

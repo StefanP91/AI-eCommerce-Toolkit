@@ -1,39 +1,47 @@
 import { useEffect } from "react";
-import { useReportClientError } from "../hooks/useReportClientError";
 
-/** Captures uncaught window errors and promise rejections into AppErrorLog. */
+/** Captures uncaught window errors into AppErrorLog (no Shopify auth required). */
 export function ClientErrorBridge() {
-  const report = useReportClientError();
-
   useEffect(() => {
+    const send = (source: string, message: string, detail: string) => {
+      const formData = new FormData();
+      formData.set("source", source);
+      formData.set("message", (message || "Unknown error").slice(0, 500));
+      formData.set("detail", (detail || "").slice(0, 4000));
+      formData.set("path", window.location.pathname);
+      void fetch("/api/client-error", {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+        keepalive: true,
+      });
+    };
+
     const onError = (event: ErrorEvent) => {
-      report({
-        source: "window.onerror",
-        message: event.message || "Uncaught error",
-        detail: [
-          event.filename && `file=${event.filename}:${event.lineno}:${event.colno}`,
+      send(
+        "window.onerror",
+        event.message || "Uncaught error",
+        [
+          event.filename &&
+            `file=${event.filename}:${event.lineno}:${event.colno}`,
           event.error instanceof Error ? event.error.stack : "",
         ]
           .filter(Boolean)
           .join("\n"),
-        path: window.location.pathname,
-      });
+      );
     };
 
     const onRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason;
-      const message =
+      send(
+        "unhandledrejection",
         reason instanceof Error
           ? reason.message
           : typeof reason === "string"
             ? reason
-            : "Unhandled promise rejection";
-      report({
-        source: "unhandledrejection",
-        message,
-        detail: reason instanceof Error ? reason.stack || "" : String(reason ?? ""),
-        path: window.location.pathname,
-      });
+            : "Unhandled promise rejection",
+        reason instanceof Error ? reason.stack || "" : String(reason ?? ""),
+      );
     };
 
     window.addEventListener("error", onError);
@@ -42,7 +50,7 @@ export function ClientErrorBridge() {
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
     };
-  }, [report]);
+  }, []);
 
   return null;
 }

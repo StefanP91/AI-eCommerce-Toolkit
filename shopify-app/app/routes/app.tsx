@@ -6,6 +6,7 @@ import {
   useLoaderData,
   useRouteError,
 } from "react-router";
+import { useEffect } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { NavMenu } from "@shopify/app-bridge-react";
@@ -58,6 +59,33 @@ export default function App() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+
+  useEffect(() => {
+    const message =
+      error instanceof Error
+        ? error.message
+        : isRouteErrorResponse(error)
+          ? `${error.status} ${error.statusText || "Error"}`.trim()
+          : "Unexpected application error";
+    const detail =
+      isRouteErrorResponse(error) && typeof error.data === "string"
+        ? error.data
+        : error instanceof Error
+          ? error.stack || error.message
+          : String(error ?? "");
+
+    const formData = new FormData();
+    formData.set("source", "ErrorBoundary");
+    formData.set("message", message.slice(0, 500));
+    formData.set("detail", detail.slice(0, 4000));
+    formData.set("path", window.location.pathname);
+    void fetch("/api/client-error", {
+      method: "POST",
+      body: formData,
+      credentials: "same-origin",
+      keepalive: true,
+    });
+  }, [error]);
 
   // React Router may reconstruct auth bounces without ErrorResponse constructor —
   // still render App Bridge HTML so the embedded admin can complete session handshake.

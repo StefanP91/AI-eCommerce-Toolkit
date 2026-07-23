@@ -52,6 +52,16 @@ async function record(
     status: result.ok ? "Success" : "Fail",
     error: result.ok ? undefined : result.error,
   });
+  if (!result.ok) {
+    const { logAppFailure } = await import("./error-log.server");
+    await logAppFailure({
+      shop,
+      source: `product.${action}`,
+      error: result.error,
+      detail: result.code ? `code=${result.code}` : null,
+      path: result.productId,
+    });
+  }
 }
 
 export async function optimizeProductById(
@@ -114,10 +124,11 @@ export async function optimizeProductById(
       error: merchantAiError(error),
     };
     await record(shop, result, "optimize");
+    // Extra detail beyond record() for AI stack traces
     const { logAppError } = await import("./error-log.server");
     await logAppError({
       shop,
-      source: "optimize-product",
+      source: "optimize-product.ai",
       message: result.error,
       detail: error instanceof Error ? error.stack || error.message : String(error),
       path: productId,

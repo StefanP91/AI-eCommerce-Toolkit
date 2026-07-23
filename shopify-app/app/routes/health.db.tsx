@@ -51,6 +51,16 @@ export const loader = async (_args: LoaderFunctionArgs) => {
       error instanceof Error ? error.message : String(error);
   }
 
+  try {
+    checks.appErrorLogCount = await prisma.appErrorLog.count();
+    checks.appErrorLogOk = true;
+  } catch (error) {
+    checks.ok = false;
+    checks.appErrorLogOk = false;
+    checks.appErrorLogError =
+      error instanceof Error ? error.message : String(error);
+  }
+
   if (
     process.env.GEMINI_PROXY_URL?.trim() &&
     process.env.GEMINI_PROXY_SECRET?.trim()
