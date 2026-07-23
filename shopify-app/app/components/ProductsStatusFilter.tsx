@@ -1,44 +1,44 @@
 import { useNavigate } from "react-router";
 import {
-  PRODUCT_SORT_OPTIONS,
+  PRODUCT_STATUS_OPTIONS,
   buildProductsUrl,
   type ProductFilter,
   type ProductSort,
   type ProductStatusFilter,
 } from "../lib/products";
 
-export function ProductsSort({
-  sort,
-  search,
-  filter,
+export function ProductsStatusFilter({
   status,
+  search,
+  sort,
+  filter,
 }: {
-  sort: ProductSort;
-  search: string;
-  filter: ProductFilter;
   status: ProductStatusFilter;
+  search: string;
+  sort: ProductSort;
+  filter: ProductFilter;
 }) {
   const navigate = useNavigate();
 
   return (
     <label className="dashboard-product-sort">
-      <span className="dashboard-product-sort-label">Sort by</span>
+      <span className="dashboard-product-sort-label">Status</span>
       <select
         className="dashboard-sort-select"
-        value={sort}
-        aria-label="Sort products"
+        value={status}
+        aria-label="Filter by product status"
         onChange={(event) => {
           navigate(
             buildProductsUrl({
               q: search,
-              sort: event.target.value as ProductSort,
+              sort,
               filter,
-              status,
+              status: event.target.value as ProductStatusFilter,
             }),
           );
         }}
       >
-        {PRODUCT_SORT_OPTIONS.map((option) => (
+        {PRODUCT_STATUS_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>

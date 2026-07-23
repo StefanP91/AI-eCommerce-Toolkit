@@ -1,4 +1,9 @@
-import type { ProductNode, ProductFilter, ProductSort } from "./products";
+import type {
+  ProductNode,
+  ProductFilter,
+  ProductSort,
+  ProductStatusFilter,
+} from "./products";
 import {
   NEEDS_AI_SCORE_THRESHOLD,
   scoreProduct,
@@ -37,9 +42,16 @@ const PRODUCT_FIELDS = `
   }
 `;
 
-function toShopifySearchQuery(search: string): string | null {
+function toShopifySearchQuery(
+  search: string,
+  status: ProductStatusFilter = "all",
+): string | null {
+  const parts: string[] = [];
   const trimmed = search.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  if (trimmed) parts.push(trimmed);
+  if (status === "active") parts.push("status:active");
+  if (status === "draft") parts.push("status:draft");
+  return parts.length > 0 ? parts.join(" ") : null;
 }
 
 async function fetchProductBatch(
@@ -47,8 +59,9 @@ async function fetchProductBatch(
   first: number,
   after: string | null,
   search: string,
+  status: ProductStatusFilter = "all",
 ): Promise<ProductBatch> {
-  const query = toShopifySearchQuery(search);
+  const query = toShopifySearchQuery(search, status);
 
   const response = await admin.graphql(
     `#graphql
@@ -90,8 +103,9 @@ async function fetchProductBatch(
 async function fetchProductsCount(
   admin: ShopifyAdmin,
   search: string,
+  status: ProductStatusFilter = "all",
 ): Promise<number> {
-  const query = toShopifySearchQuery(search);
+  const query = toShopifySearchQuery(search, status);
 
   const response = await admin.graphql(
     `#graphql
@@ -118,18 +132,20 @@ export type ProductsPageResult = {
   search: string;
   sort: ProductSort;
   filter: ProductFilter;
+  status: ProductStatusFilter;
 };
 
 async function fetchAllProducts(
   admin: ShopifyAdmin,
   search: string,
+  status: ProductStatusFilter = "all",
 ): Promise<ProductNode[]> {
   const allProducts: ProductNode[] = [];
   let cursor: string | null = null;
   let hasNextPage = true;
 
   while (hasNextPage) {
-    const batch = await fetchProductBatch(admin, 250, cursor, search);
+    const batch = await fetchProductBatch(admin, 250, cursor, search, status);
     allProducts.push(...batch.products);
     hasNextPage = batch.pageInfo.hasNextPage;
     cursor = batch.pageInfo.endCursor;
@@ -184,6 +200,7 @@ function paginateProducts(
   search: string,
   sort: ProductSort,
   filter: ProductFilter,
+  status: ProductStatusFilter,
 ): ProductsPageResult {
   const totalCount = products.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize) || 1);
@@ -201,6 +218,7 @@ function paginateProducts(
     search,
     sort,
     filter,
+    status,
   };
 }
 
@@ -210,6 +228,7 @@ export async function fetchProductsPage(
   search = "",
   sort: ProductSort = "updated",
   filter: ProductFilter = "all",
+  status: ProductStatusFilter = "all",
 ): Promise<ProductsPageResult> {
   const pageSize = PRODUCTS_PAGE_SIZE;
   const normalizedSearch = search.trim();
@@ -217,7 +236,10 @@ export async function fetchProductsPage(
 
   if (needsLocalPipeline) {
     const allProducts = sortProducts(
-      filterProducts(await fetchAllProducts(admin, normalizedSearch), filter),
+      filterProducts(
+        await fetchAllProducts(admin, normalizedSearch, status),
+        filter,
+      ),
       sort === "updated" && filter === "needs_ai" ? "seo_asc" : sort,
     );
 
@@ -228,10 +250,15 @@ export async function fetchProductsPage(
       normalizedSearch,
       sort,
       filter,
+      status,
     );
   }
 
-  const totalCount = await fetchProductsCount(admin, normalizedSearch);
+  const totalCount = await fetchProductsCount(
+    admin,
+    normalizedSearch,
+    status,
+  );
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const targetPage = Math.min(Math.max(1, page), totalPages);
 
@@ -242,6 +269,7 @@ export async function fetchProductsPage(
       pageSize,
       cursor,
       normalizedSearch,
+      status,
     );
     if (!step.pageInfo.hasNextPage) {
       break;
@@ -254,6 +282,7 @@ export async function fetchProductsPage(
     pageSize,
     cursor,
     normalizedSearch,
+    status,
   );
 
   return {
@@ -267,6 +296,7 @@ export async function fetchProductsPage(
     search: normalizedSearch,
     sort,
     filter,
+    status,
   };
 }
 

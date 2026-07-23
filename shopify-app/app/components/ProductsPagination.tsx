@@ -3,6 +3,7 @@ import {
   buildProductsUrl,
   type ProductFilter,
   type ProductSort,
+  type ProductStatusFilter,
 } from "../lib/products";
 
 export function ProductsPagination({
@@ -15,6 +16,7 @@ export function ProductsPagination({
   search,
   sort,
   filter,
+  status,
 }: {
   page: number;
   totalPages: number;
@@ -25,6 +27,7 @@ export function ProductsPagination({
   search: string;
   sort: ProductSort;
   filter: ProductFilter;
+  status: ProductStatusFilter;
 }) {
   if (totalCount === 0) {
     return null;
@@ -36,6 +39,8 @@ export function ProductsPagination({
     `Showing ${rangeStart}–${rangeEnd} of ${totalCount}`,
     filter === "needs_ai" ? "products that need AI" : "products",
   ];
+  if (status === "active") parts.push("(Active)");
+  if (status === "draft") parts.push("(Draft)");
   if (search) {
     parts.push(`for "${search}"`);
   }
@@ -48,7 +53,13 @@ export function ProductsPagination({
         <nav className="dashboard-pagination" aria-label="Products pagination">
           {hasPreviousPage ? (
             <Link
-              to={buildProductsUrl({ page: page - 1, q: search, sort, filter })}
+              to={buildProductsUrl({
+                page: page - 1,
+                q: search,
+                sort,
+                filter,
+                status,
+              })}
               className="dashboard-btn dashboard-btn-ghost"
             >
               Previous
@@ -65,7 +76,13 @@ export function ProductsPagination({
 
           {hasNextPage ? (
             <Link
-              to={buildProductsUrl({ page: page + 1, q: search, sort, filter })}
+              to={buildProductsUrl({
+                page: page + 1,
+                q: search,
+                sort,
+                filter,
+                status,
+              })}
               className="dashboard-btn dashboard-btn-ghost"
             >
               Next

@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { fetchProductsPage } from "../lib/products.server";
-import { parseProductFilter, parseProductSort } from "../lib/products";
+import { parseProductFilter, parseProductSort, parseProductStatus } from "../lib/products";
 import {
   altProductById,
   optimizeProductById,
@@ -21,11 +21,13 @@ import { ProductsPagination } from "../components/ProductsPagination";
 import { ProductsSearch } from "../components/ProductsSearch";
 import { ProductsSort } from "../components/ProductsSort";
 import { ProductsFilter } from "../components/ProductsFilter";
+import { ProductsStatusFilter } from "../components/ProductsStatusFilter";
 import { BulkProgressBar } from "../components/BulkProgressBar";
 import { useSequentialBulk } from "../hooks/useSequentialBulk";
 import { AiQuotaBanner } from "../components/AiQuotaBanner";
 import { UpgradeToProButton } from "../components/UpgradeToProButton";
 import { canUseAi, requireProPlan } from "../lib/billing.server";
+import { isGeminiConfigured } from "../lib/gemini.server";
 
 export const MAX_BULK_OPTIMIZE = 20;
 
@@ -36,17 +38,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const search = (url.searchParams.get("q") || "").trim();
   const sort = parseProductSort(url.searchParams.get("sort"));
   const filter = parseProductFilter(url.searchParams.get("filter"));
+  const status = parseProductStatus(url.searchParams.get("status"));
   const productsPage = await fetchProductsPage(
     admin,
     page,
     search,
     sort,
     filter,
+    status,
   );
 
   return {
     ...productsPage,
-    aiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
+    aiConfigured: isGeminiConfigured(),
     maxBulk: MAX_BULK_OPTIMIZE,
     languages: TOOL_LANGUAGES,
     billing: await canUseAi(session.shop),
@@ -150,6 +154,7 @@ export default function ProductsPage() {
     search,
     sort,
     filter,
+    status,
     aiConfigured,
     maxBulk,
     languages,
@@ -340,10 +345,31 @@ export default function ProductsPage() {
       <AiQuotaBanner billing={billing} />
 
       <div className="dashboard-products-toolbar">
-        <ProductsSearch defaultQuery={search} sort={sort} filter={filter} />
+        <ProductsSearch
+          defaultQuery={search}
+          sort={sort}
+          filter={filter}
+          status={status}
+        />
         <div className="dashboard-products-toolbar-right">
-          <ProductsFilter filter={filter} search={search} sort={sort} />
-          <ProductsSort sort={sort} search={search} filter={filter} />
+          <ProductsFilter
+            filter={filter}
+            search={search}
+            sort={sort}
+            status={status}
+          />
+          <ProductsStatusFilter
+            status={status}
+            search={search}
+            sort={sort}
+            filter={filter}
+          />
+          <ProductsSort
+            sort={sort}
+            search={search}
+            filter={filter}
+            status={status}
+          />
         </div>
       </div>
 
@@ -470,6 +496,7 @@ export default function ProductsPage() {
         search={search}
         sort={sort}
         filter={filter}
+        status={status}
       />
 
       {fetcher.data?.ok && fetcher.data.intent === "single" && fetcher.data.generated && (

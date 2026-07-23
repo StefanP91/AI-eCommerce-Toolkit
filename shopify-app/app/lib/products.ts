@@ -16,6 +16,7 @@ export type ProductNode = {
 
 export type ProductSort = "updated" | "seo_desc" | "seo_asc";
 export type ProductFilter = "all" | "needs_ai";
+export type ProductStatusFilter = "all" | "active" | "draft";
 
 export const PRODUCT_SORT_OPTIONS: Array<{
   value: ProductSort;
@@ -24,6 +25,15 @@ export const PRODUCT_SORT_OPTIONS: Array<{
   { value: "updated", label: "Recently updated" },
   { value: "seo_desc", label: "SEO score: High to Low" },
   { value: "seo_asc", label: "SEO score: Low to High" },
+];
+
+export const PRODUCT_STATUS_OPTIONS: Array<{
+  value: ProductStatusFilter;
+  label: string;
+}> = [
+  { value: "all", label: "All statuses" },
+  { value: "active", label: "Active only" },
+  { value: "draft", label: "Draft only" },
 ];
 
 export const NEEDS_AI_SCORE_THRESHOLD = 75;
@@ -39,12 +49,20 @@ export function parseProductFilter(value: string | null): ProductFilter {
   return value === "needs_ai" ? "needs_ai" : "all";
 }
 
+export function parseProductStatus(value: string | null): ProductStatusFilter {
+  if (value === "active" || value === "draft") {
+    return value;
+  }
+  return "all";
+}
+
 export function buildProductsUrl(
   options: {
     page?: number;
     q?: string;
     sort?: ProductSort;
     filter?: ProductFilter;
+    status?: ProductStatusFilter;
   } = {},
 ) {
   const params = new URLSearchParams();
@@ -58,6 +76,9 @@ export function buildProductsUrl(
   }
   if (options.filter && options.filter !== "all") {
     params.set("filter", options.filter);
+  }
+  if (options.status && options.status !== "all") {
+    params.set("status", options.status);
   }
   if (options.page && options.page > 1) {
     params.set("page", String(options.page));
