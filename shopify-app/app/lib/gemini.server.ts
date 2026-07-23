@@ -101,7 +101,8 @@ async function callDirect(options: {
   image?: { mimeType: string; base64: string };
 }): Promise<Record<string, unknown>> {
   const apiKey = process.env.GEMINI_API_KEY!.trim();
-  const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const preferred = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const models = geminiModelChain(preferred);
 
   const parts: Array<
     | { text: string }
@@ -121,45 +122,86 @@ async function callDirect(options: {
   }
   parts.push({ text: options.prompt });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts }],
-      generationConfig: {
-        temperature: options.temperature ?? 0.5,
-        responseMimeType: "application/json",
-      },
-    }),
-    signal: AbortSignal.timeout(45000),
-  });
-
-  const detail = await response.text();
-  if (!response.ok) {
-    console.error("[gemini]", response.status, detail.slice(0, 300));
-    throw new Error(`AI generation failed (${response.status})`);
-  }
-
-  let json: {
-    candidates?: Array<{
-      content?: { parts?: Array<{ text?: string }> };
-      finishReason?: string;
-    }>;
-    promptFeedback?: { blockReason?: string };
+  const body = {
+    contents: [{ role: "user", parts }],
+    generationConfig: {
+      temperature: options.temperature ?? 0.5,
+      responseMimeType: "application/json",
+    },
   };
-  try {
-    json = JSON.parse(detail);
-  } catch {
-    throw new Error("AI generation failed (invalid upstream JSON)");
+
+  let lastError: Error | null = null;
+
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(45000),
+    });
+
+    const detail = await response.text();
+    if (!response.ok) {
+      console.error("[gemini]", model, response.status, detail.slice(0, 300));
+      lastError = new Error(`AI generation failed (${response.status})`);
+      if (
+        response.status === 429 ||
+        response.status === 404 ||
+        /RESOURCE_EXHAUSTED|quota|rate limit/i.test(detail)
+      ) {
+        continue;
+      }
+      throw lastError;
+    }
+
+    let json: {
+      candidates?: Array<{
+        content?: { parts?: Array<{ text?: string }> };
+        finishReason?: string;
+      }>;
+      promptFeedback?: { blockReason?: string };
+    };
+    try {
+      json = JSON.parse(detail);
+    } catch {
+      throw new Error("AI generation failed (invalid upstream JSON)");
+    }
+
+    if (json.promptFeedback?.blockReason) {
+      throw new Error("AI generation failed (blocked)");
+    }
+
+    if (model !== preferred) {
+      console.warn(`[gemini] fallback model=${model} (preferred=${preferred})`);
+    }
+
+    const raw = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    return parseJson(raw);
   }
 
-  if (json.promptFeedback?.blockReason) {
-    throw new Error("AI generation failed (blocked)");
-  }
+  throw lastError || new Error("AI generation failed (429)");
+}
 
-  const raw = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  return parseJson(raw);
+/** Preferred first, then env fallbacks, then defaults. Fresh list every call. */
+export function geminiModelChain(preferred: string): string[] {
+  const defaults = [
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.5-flash",
+  ];
+  const fromEnv = (process.env.GEMINI_MODEL_FALLBACKS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const list = [preferred, ...fromEnv, ...defaults];
+  const seen = new Set<string>();
+  return list.filter((model) => {
+    const key = model.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function shouldRetry(error: unknown): boolean {
