@@ -1,30 +1,29 @@
-/** Merchant-facing AI error messages (never expose .env or provider internals). */
+/**
+ * Merchant-facing AI error messages.
+ * Never expose quota, billing, API keys, provider names, or infra details.
+ */
 export function merchantAiError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error || "");
 
-  if (/GEMINI_API_KEY|not configured/i.test(raw)) {
-    return "AI generation is temporarily unavailable. Please try again later or contact support.";
-  }
-  if (/quota|rate limit|429/i.test(raw)) {
-    return "AI is busy right now. Wait a moment and try again.";
+  // Quota / rate limits / provider outages → same generic copy for merchants.
+  if (
+    /quota|rate limit|429|RESOURCE_EXHAUSTED|not configured|GEMINI|generativelanguage|AI generation failed|502|503|504|network|timeout|ECONN|ENOTFOUND|aborted/i.test(
+      raw,
+    )
+  ) {
+    return "AI generation is temporarily unavailable. Please try again later.";
   }
   if (/blocked/i.test(raw)) {
     return "AI could not process that content. Try again with different product text.";
   }
   if (/invalid JSON|parse|empty content/i.test(raw)) {
-    return "AI returned an unexpected response. Please try again.";
-  }
-  if (/AI generation failed \((502|503|504)\)|network|timeout|ECONN/i.test(raw)) {
-    return "AI is temporarily unreachable. Please try again in a moment.";
-  }
-  if (/AI generation failed|generativelanguage|Gemini/i.test(raw)) {
-    return "AI generation failed. Please try again in a moment.";
-  }
-  if (raw.length > 160 || /api[_ ]?key|stack|ECONN|ENOTFOUND/i.test(raw)) {
     return "Something went wrong while generating. Please try again.";
   }
-  return raw || "Something went wrong. Please try again.";
+  if (raw.length > 160 || /api[_ ]?key|stack|shpss_|Bearer/i.test(raw)) {
+    return "Something went wrong while generating. Please try again.";
+  }
+  return "Something went wrong while generating. Please try again.";
 }
 
 export const AI_NOT_CONFIGURED_MERCHANT =
-  "AI generation is temporarily unavailable. Schema markup and browsing still work — contact support if this continues.";
+  "AI generation is temporarily unavailable. Schema markup and browsing still work — please try again later.";

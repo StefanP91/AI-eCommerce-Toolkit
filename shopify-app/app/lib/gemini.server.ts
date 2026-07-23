@@ -23,11 +23,17 @@ export async function callGeminiJson(options: {
       if (!shouldRetry(error) || attempt === 3) {
         if (attempt === 3 || !shouldRetry(error)) {
           const { logAppError } = await import("./error-log.server");
+          const message =
+            error instanceof Error ? error.message : "AI generation failed";
+          const isQuota = /429|quota|rate limit|RESOURCE_EXHAUSTED/i.test(
+            message,
+          );
           await logAppError({
-            source: "gemini",
-            message:
-              error instanceof Error ? error.message : "AI generation failed",
-            detail: error instanceof Error ? error.stack || null : String(error),
+            source: isQuota ? "gemini.quota" : "gemini",
+            message: isQuota
+              ? "Gemini quota / rate limit exceeded (hidden from merchants)"
+              : message,
+            detail: error instanceof Error ? error.stack || message : String(error),
             path: proxyUrl ? "proxy" : "direct",
           });
         }
@@ -158,7 +164,11 @@ async function callDirect(options: {
 
 function shouldRetry(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error || "");
-  return /AI generation failed \((429|500|502|503|504)\)|fetch failed|ECONN|ETIMEDOUT|TimeoutError|aborted|network/i.test(
+  // Never retry 429/quota — burns free daily limit and makes outages worse.
+  if (/429|quota|rate limit|RESOURCE_EXHAUSTED/i.test(message)) {
+    return false;
+  }
+  return /AI generation failed \((500|502|503|504)\)|fetch failed|ECONN|ETIMEDOUT|TimeoutError|aborted|network/i.test(
     message,
   );
 }

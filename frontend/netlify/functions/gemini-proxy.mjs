@@ -31,7 +31,7 @@ async function callGemini(url, body, attempt = 1) {
 
   if (
     !response.ok &&
-    [429, 500, 502, 503, 504].includes(response.status) &&
+    [500, 502, 503, 504].includes(response.status) &&
     attempt < 3
   ) {
     await sleep(attempt * 600);
