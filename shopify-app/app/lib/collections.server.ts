@@ -2,6 +2,10 @@ import { callGeminiJson, clip, clean, isGeminiConfigured } from "./gemini.server
 import { logActivityRun } from "./activity.server";
 import { recordAiUsageIfFree, requireAiAccess } from "./billing.server";
 import { merchantAiError } from "./merchant-errors";
+import {
+  fetchShopDisplayName,
+  replaceStorePlaceholders,
+} from "./shop-name.server";
 
 type ShopifyAdmin = {
   graphql: (
@@ -156,18 +160,20 @@ export async function optimizeCollectionById(
     metaDescription: string;
   };
 
+  const storeName = await fetchShopDisplayName(admin, shop);
+
   try {
     if (!isGeminiConfigured()) {
       generated = {
         title: clip(clean(collection.title), 70),
         descriptionHtml:
           collection.descriptionHtml ||
-          `<p>Shop our ${collection.title} collection.</p>`,
+          `<p>Shop our ${collection.title} collection at ${storeName}.</p>`,
         metaTitle: clip(clean(collection.seo?.title || collection.title), 60),
         metaDescription: clip(
           clean(
             collection.seo?.description ||
-              `Explore ${collection.title}. Quality products curated for you.`,
+              `Explore ${collection.title} at ${storeName}. Quality products curated for you.`,
           ),
           155,
         ),
@@ -176,11 +182,13 @@ export async function optimizeCollectionById(
       const parsed = await callGeminiJson({
         temperature: 0.55,
         system:
-          'You write SEO collection copy for Shopify. Return JSON: {"title":"...","descriptionHtml":"<p>...</p>","metaTitle":"...","metaDescription":"..."}',
+          'You write SEO collection copy for Shopify. Return JSON: {"title":"...","descriptionHtml":"<p>...</p>","metaTitle":"...","metaDescription":"..."}. Never use placeholders like [Store Name].',
         prompt: `Improve this Shopify collection for SEO.
+Store name: ${storeName}
 Current title: ${collection.title}
 Current description: ${(collection.descriptionHtml || "").replace(/<[^>]+>/g, " ").slice(0, 600)}
 Rules:
+- Use the real store name "${storeName}" whenever a brand/store name is needed — never [Store Name] or similar placeholders
 - title max 70 chars
 - metaTitle 30-60 chars
 - metaDescription 120-155 chars
@@ -188,20 +196,39 @@ Rules:
       });
 
       generated = {
-        title: clip(clean(String(parsed.title || collection.title)), 70),
-        descriptionHtml: String(
-          parsed.descriptionHtml ||
-            `<p>Discover our ${collection.title} collection.</p>`,
+        title: clip(
+          clean(
+            replaceStorePlaceholders(
+              String(parsed.title || collection.title),
+              storeName,
+            ),
+          ),
+          70,
+        ),
+        descriptionHtml: replaceStorePlaceholders(
+          String(
+            parsed.descriptionHtml ||
+              `<p>Discover our ${collection.title} collection at ${storeName}.</p>`,
+          ),
+          storeName,
         ),
         metaTitle: clip(
-          clean(String(parsed.metaTitle || parsed.title || collection.title)),
+          clean(
+            replaceStorePlaceholders(
+              String(parsed.metaTitle || parsed.title || collection.title),
+              storeName,
+            ),
+          ),
           60,
         ),
         metaDescription: clip(
           clean(
-            String(
-              parsed.metaDescription ||
-                `Shop ${collection.title}. Curated products with great value.`,
+            replaceStorePlaceholders(
+              String(
+                parsed.metaDescription ||
+                  `Shop ${collection.title} at ${storeName}. Curated products with great value.`,
+              ),
+              storeName,
             ),
           ),
           155,

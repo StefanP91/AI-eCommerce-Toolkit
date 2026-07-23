@@ -6,6 +6,7 @@ import {
 import { logActivityRun, type ActivityAction } from "./activity.server";
 import { recordAiUsageIfFree, requireAiAccess } from "./billing.server";
 import { merchantAiError } from "./merchant-errors";
+import { fetchShopDisplayName } from "./shop-name.server";
 
 type ShopifyAdmin = {
   graphql: (
@@ -99,9 +100,11 @@ export async function optimizeProductById(
 
   let generated;
   try {
+    const storeName = await fetchShopDisplayName(admin, shop);
     generated = await generateProductContent({
       title: product.title,
       descriptionHtml: product.descriptionHtml || "",
+      storeName,
     });
   } catch (error) {
     const result = {
