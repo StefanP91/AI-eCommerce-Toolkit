@@ -286,11 +286,18 @@
 }
 
 .dashboard-settings-how {
-  margin-top: 1rem;
+  margin-top: 0;
+}
+
+.dashboard-settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
 }
 
 .dashboard-settings-support {
-  margin-top: 1.75rem;
+  margin-top: 0;
 }
 
 .dashboard-settings-support .dashboard-tools-actions {

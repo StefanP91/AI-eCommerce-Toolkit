@@ -316,107 +316,109 @@ export default function SettingsPage() {
         </section>
       </div>
 
-      <section className="dashboard-card">
-        <h2>Features</h2>
-        <div className="dashboard-settings-features">
-          <div>
-            <h3>Products</h3>
-            <p>
-              Optimize titles, descriptions, and SEO meta. Bulk translate and
-              generate image alt text.
-            </p>
-            <Link to="/app/products" className="dashboard-btn dashboard-btn-ghost">
-              Open Products
-            </Link>
+      <div className="dashboard-settings-stack">
+        <section className="dashboard-card">
+          <h2>Features</h2>
+          <div className="dashboard-settings-features">
+            <div>
+              <h3>Products</h3>
+              <p>
+                Optimize titles, descriptions, and SEO meta. Bulk translate and
+                generate image alt text.
+              </p>
+              <Link to="/app/products" className="dashboard-btn dashboard-btn-ghost">
+                Open Products
+              </Link>
+            </div>
+            <div>
+              <h3>Collections</h3>
+              <p>
+                Improve collection titles and SEO copy one by one or in bulk.
+              </p>
+              <Link
+                to="/app/collections"
+                className="dashboard-btn dashboard-btn-ghost"
+              >
+                Open Collections
+              </Link>
+            </div>
+            <div>
+              <h3>Tools</h3>
+              <p>
+                Translator, title ideas, image optimizer (compress + alt text),
+                and product schema JSON-LD.
+              </p>
+              <Link to="/app/tools" className="dashboard-btn dashboard-btn-ghost">
+                Open Tools
+              </Link>
+            </div>
+            <div>
+              <h3>Dashboard</h3>
+              <p>
+                SEO overview, today’s activity, and a quick list of products that
+                still need work.
+              </p>
+              <Link to="/app" className="dashboard-btn dashboard-btn-ghost">
+                Open Dashboard
+              </Link>
+            </div>
           </div>
-          <div>
-            <h3>Collections</h3>
-            <p>
-              Improve collection titles and SEO copy one by one or in bulk.
-            </p>
-            <Link
-              to="/app/collections"
-              className="dashboard-btn dashboard-btn-ghost"
+        </section>
+
+        <section className="dashboard-card">
+          <h2>How it works</h2>
+          <ol className="dashboard-settings-steps">
+            <li>Pick a product, collection, or tool.</li>
+            <li>Generate a draft with AI and review it.</li>
+            <li>Apply only when you are ready — nothing is saved until you confirm.</li>
+          </ol>
+          <p className="dashboard-settings-note" style={{ marginBottom: 0 }}>
+            AI Commerce Suite runs inside Shopify Admin. Changes write directly to
+            your catalog — there is no separate storefront to manage.
+          </p>
+        </section>
+
+        <section className="dashboard-card dashboard-settings-support">
+          <h2>Support &amp; legal</h2>
+          <p className="dashboard-settings-note" style={{ marginTop: 0 }}>
+            Questions or issues? Email{" "}
+            <a
+              href="mailto:stefanpanov0@gmail.com"
+              target="_blank"
+              rel="noreferrer"
             >
-              Open Collections
-            </Link>
+              stefanpanov0@gmail.com
+            </a>
+            .
+          </p>
+          <div className="dashboard-tools-actions">
+            <a
+              className="dashboard-btn dashboard-btn-ghost"
+              href="https://ai-ecommerce-suite.netlify.app/privacy"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Privacy Policy
+            </a>
+            <a
+              className="dashboard-btn dashboard-btn-ghost"
+              href="https://ai-ecommerce-suite.netlify.app/terms"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Terms of Service
+            </a>
+            <a
+              className="dashboard-btn dashboard-btn-ghost"
+              href="mailto:stefanpanov0@gmail.com"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Contact support
+            </a>
           </div>
-          <div>
-            <h3>Tools</h3>
-            <p>
-              Translator, title ideas, image optimizer (compress + alt text),
-              and product schema JSON-LD.
-            </p>
-            <Link to="/app/tools" className="dashboard-btn dashboard-btn-ghost">
-              Open Tools
-            </Link>
-          </div>
-          <div>
-            <h3>Dashboard</h3>
-            <p>
-              SEO overview, today’s activity, and a quick list of products that
-              still need work.
-            </p>
-            <Link to="/app" className="dashboard-btn dashboard-btn-ghost">
-              Open Dashboard
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="dashboard-card dashboard-settings-how">
-        <h2>How it works</h2>
-        <ol className="dashboard-settings-steps">
-          <li>Pick a product, collection, or tool.</li>
-          <li>Generate a draft with AI and review it.</li>
-          <li>Apply only when you are ready — nothing is saved until you confirm.</li>
-        </ol>
-        <p className="dashboard-settings-note" style={{ marginBottom: 0 }}>
-          AI Commerce Suite runs inside Shopify Admin. Changes write directly to
-          your catalog — there is no separate storefront to manage.
-        </p>
-      </section>
-
-      <section className="dashboard-card dashboard-settings-support">
-        <h2>Support &amp; legal</h2>
-        <p className="dashboard-settings-note" style={{ marginTop: 0 }}>
-          Questions or issues? Email{" "}
-          <a
-            href="mailto:stefanpanov0@gmail.com"
-            target="_blank"
-            rel="noreferrer"
-          >
-            stefanpanov0@gmail.com
-          </a>
-          .
-        </p>
-        <div className="dashboard-tools-actions">
-          <a
-            className="dashboard-btn dashboard-btn-ghost"
-            href="https://ai-ecommerce-suite.netlify.app/privacy"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Privacy Policy
-          </a>
-          <a
-            className="dashboard-btn dashboard-btn-ghost"
-            href="https://ai-ecommerce-suite.netlify.app/terms"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Terms of Service
-          </a>
-          <a
-            className="dashboard-btn dashboard-btn-ghost"
-            href="mailto:stefanpanov0@gmail.com"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Contact support
-          </a>
-        </div>
-      </section>
+        </section>
+      </div>
     </>
   );
 }
