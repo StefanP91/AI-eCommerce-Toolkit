@@ -2,12 +2,11 @@
 
 client_id = "dcf856197337df13d712c2c6b6188bd7"
 name = "AI Commerce Suite"
-application_url = "https://ai-ecommerce-suite.netlify.app/shopify-app-boot"
+application_url = "https://ai-ecommerce-shopify-app.onrender.com"
 embedded = true
 
 [build]
 automatically_update_urls_on_dev = false
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2025-10"
