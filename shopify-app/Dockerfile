@@ -13,10 +13,10 @@ RUN npm ci && npm cache clean --force
 
 COPY . .
 
-RUN npm run build && npm prune --omit=dev
+# Generate client AFTER schema is present (npm ci postinstall runs too early).
+RUN npx prisma generate && npm run build && npm prune --omit=dev
 
 # Isolate Shopify tables in schema "shopify" so Laravel public tables are untouched.
-# Do NOT use --accept-data-loss (would risk Laravel data on shared DB).
-CMD ["sh", "-c", "printf '%s\\n' 'CREATE SCHEMA IF NOT EXISTS \"shopify\";' | npx prisma db execute --stdin --schema prisma/schema.prisma && npx prisma db push --skip-generate --schema prisma/schema.prisma && exec npx react-router-serve ./build/server/index.js"]
+CMD ["sh", "-c", "printf '%s\\n' 'CREATE SCHEMA IF NOT EXISTS \"shopify\";' | npx prisma db execute --stdin --schema prisma/schema.prisma && npx prisma db push --schema prisma/schema.prisma && exec npx react-router-serve ./build/server/index.js"]
 
 EXPOSE 3000
