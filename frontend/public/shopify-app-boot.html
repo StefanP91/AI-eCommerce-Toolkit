@@ -101,7 +101,11 @@
         var maxAttempts = 60;
 
         function go() {
-          window.location.replace(APP_ORIGIN + "/" + params + hash);
+          var query = params || "";
+          if (query && query.charAt(0) !== "?") {
+            query = "?" + query;
+          }
+          window.location.replace(APP_ORIGIN + "/app" + query + hash);
         }
 
         async function probe() {
