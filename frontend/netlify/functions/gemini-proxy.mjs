@@ -1,6 +1,7 @@
 /**
  * Gemini proxy for hosts in Google geo-blocked regions (e.g. some Render EU IPs).
- * Secrets: GEMINI_API_KEY, optional GEMINI_MODEL, GEMINI_PROXY_SECRET
+ * Secrets: GEMINI_PROXY_API_KEY (preferred), optional GEMINI_API_KEY fallback,
+ * optional GEMINI_MODEL, required GEMINI_PROXY_SECRET
  */
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,10 +37,14 @@ export async function handler(event) {
     return json(401, { error: "Unauthorized" });
   }
 
-  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  const apiKey = (
+    process.env.GEMINI_PROXY_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    ""
+  ).trim();
   const model = (process.env.GEMINI_MODEL || "gemini-2.5-flash").trim();
   if (!apiKey) {
-    return json(503, { error: "GEMINI_API_KEY not configured on proxy" });
+    return json(503, { error: "GEMINI_PROXY_API_KEY not configured on proxy" });
   }
 
   let payload;
