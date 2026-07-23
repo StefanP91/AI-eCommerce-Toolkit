@@ -73,6 +73,9 @@ Thumbs.db
 .vscode/
 .fleet/
 .cursor/
+!.cursor/hooks.json
+!.cursor/hooks/
+!.cursor/hooks/**
 .githooks/
 *.swp
 *.log
