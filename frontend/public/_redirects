@@ -1,4 +1,5 @@
 /sitemap.xml    /.netlify/functions/sitemap    200!
 /sitemap.xml/   /.netlify/functions/sitemap    200!
 /sitemap-pages.xml    /.netlify/functions/sitemap    200!
+/api/gemini    /.netlify/functions/gemini-proxy    200!
 /*    /index.html   200
