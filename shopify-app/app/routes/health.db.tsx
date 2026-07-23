@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
+import { isGeminiConfigured } from "../lib/gemini.server";
 
 /** Unauthenticated diagnostics for production outages (no secrets). */
 export const loader = async (_args: LoaderFunctionArgs) => {
@@ -9,6 +10,8 @@ export const loader = async (_args: LoaderFunctionArgs) => {
     hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
     hasApiKey: Boolean(process.env.SHOPIFY_API_KEY),
     hasApiSecret: Boolean(process.env.SHOPIFY_API_SECRET),
+    hasGeminiKey: isGeminiConfigured(),
+    geminiModel: process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
     appUrl: process.env.SHOPIFY_APP_URL || null,
     scopes: process.env.SCOPES || null,
   };
@@ -19,7 +22,8 @@ export const loader = async (_args: LoaderFunctionArgs) => {
   } catch (error) {
     checks.ok = false;
     checks.dbConnect = false;
-    checks.dbConnectError = error instanceof Error ? error.message : String(error);
+    checks.dbConnectError =
+      error instanceof Error ? error.message : String(error);
   }
 
   try {
@@ -28,7 +32,8 @@ export const loader = async (_args: LoaderFunctionArgs) => {
   } catch (error) {
     checks.ok = false;
     checks.sessionOk = false;
-    checks.sessionError = error instanceof Error ? error.message : String(error);
+    checks.sessionError =
+      error instanceof Error ? error.message : String(error);
   }
 
   try {
@@ -37,7 +42,35 @@ export const loader = async (_args: LoaderFunctionArgs) => {
   } catch (error) {
     checks.ok = false;
     checks.shopPlanOk = false;
-    checks.shopPlanError = error instanceof Error ? error.message : String(error);
+    checks.shopPlanError =
+      error instanceof Error ? error.message : String(error);
+  }
+
+  if (isGeminiConfigured()) {
+    const apiKey = process.env.GEMINI_API_KEY!.trim();
+    const model = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}?key=${apiKey}`,
+        { method: "GET" },
+      );
+      checks.geminiReachable = response.ok;
+      checks.geminiStatus = response.status;
+      if (!response.ok) {
+        checks.ok = false;
+        const body = await response.text();
+        checks.geminiError = body.slice(0, 180);
+      }
+    } catch (error) {
+      checks.ok = false;
+      checks.geminiReachable = false;
+      checks.geminiError =
+        error instanceof Error ? error.message : String(error);
+    }
+  } else {
+    checks.ok = false;
+    checks.geminiReachable = false;
+    checks.geminiError = "GEMINI_API_KEY missing on host";
   }
 
   return Response.json(checks, { status: checks.ok ? 200 : 503 });
