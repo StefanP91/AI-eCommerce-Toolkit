@@ -24,6 +24,8 @@ import { ProductsFilter } from "../components/ProductsFilter";
 import { ProductsStatusFilter } from "../components/ProductsStatusFilter";
 import { BulkProgressBar } from "../components/BulkProgressBar";
 import { useSequentialBulk } from "../hooks/useSequentialBulk";
+import { useFetcherActionFeedback } from "../hooks/useFetcherActionFeedback";
+import { useReportClientError } from "../hooks/useReportClientError";
 import { AiQuotaBanner } from "../components/AiQuotaBanner";
 import { UpgradeToProButton } from "../components/UpgradeToProButton";
 import { canUseAi, requireProPlan } from "../lib/billing.server";
@@ -63,6 +65,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = String(formData.get("intent") || "single");
   const shop = session.shop;
 
+  try {
   if (intent === "bulk" || intent === "bulk_translate" || intent === "bulk_alt") {
     const pro = await requireProPlan(shop);
     if (!pro.allowed) return pro.deny;
@@ -131,7 +134,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const result = await optimizeProductById(admin, productId, shop);
   if (!result.ok) {
-    return { ok: false as const, error: result.error };
+    return { ok: false as const, error: result.error, intent: "single" as const };
   }
 
   return {
@@ -140,6 +143,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     productId: result.productId,
     generated: result.generated,
   };
+  } catch (error) {
+    const { logAppError } = await import("../lib/error-log.server");
+    const { merchantAiError } = await import("../lib/merchant-errors");
+    const message = merchantAiError(error);
+    await logAppError({
+      shop,
+      source: "products.action",
+      message,
+      detail: error instanceof Error ? error.stack || error.message : String(error),
+      path: `/app/products#${intent}`,
+    });
+    return { ok: false as const, error: message, intent: intent as "single" };
+  }
 };
 
 export default function ProductsPage() {
@@ -163,6 +179,7 @@ export default function ProductsPage() {
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
   const revalidator = useRevalidator();
+  const reportClientError = useReportClientError();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState<
     "bulk" | "bulk_translate" | "bulk_alt"
@@ -193,6 +210,13 @@ export default function ProductsPage() {
         shopify.toast.show(`${label} failed`, { isError: true });
       }
     },
+  });
+
+  useFetcherActionFeedback({
+    fetcher,
+    shopify,
+    disabled: isBulkRunning,
+    reportError: reportClientError,
   });
 
   const isBusy =
@@ -243,6 +267,11 @@ export default function ProductsPage() {
 
     if (!fetcher.data.ok && fetcher.data.error) {
       shopify.toast.show(fetcher.data.error, { isError: true });
+      return;
+    }
+
+    if (!fetcher.data.ok) {
+      shopify.toast.show("Optimize failed — see Error logs", { isError: true });
     }
   }, [fetcher.data, fetcher.state, shopify, revalidator, isBulkRunning]);
 

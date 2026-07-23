@@ -15,6 +15,8 @@ import {
 } from "../lib/collections.server";
 import { BulkProgressBar } from "../components/BulkProgressBar";
 import { useSequentialBulk } from "../hooks/useSequentialBulk";
+import { useFetcherActionFeedback } from "../hooks/useFetcherActionFeedback";
+import { useReportClientError } from "../hooks/useReportClientError";
 import { AiQuotaBanner } from "../components/AiQuotaBanner";
 import { UpgradeToProButton } from "../components/UpgradeToProButton";
 import { canUseAi, requireProPlan } from "../lib/billing.server";
@@ -43,6 +45,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = String(formData.get("intent") || "single");
   const shop = session.shop;
 
+  try {
   if (intent === "bulk") {
     const pro = await requireProPlan(shop);
     if (!pro.allowed) return pro.deny;
@@ -129,6 +132,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     collectionId: result.collectionId,
     generated: result.generated,
   };
+  } catch (error) {
+    const { logAppError } = await import("../lib/error-log.server");
+    const { merchantAiError } = await import("../lib/merchant-errors");
+    const message = merchantAiError(error);
+    await logAppError({
+      shop,
+      source: "collections.action",
+      message,
+      detail: error instanceof Error ? error.stack || error.message : String(error),
+      path: `/app/collections#${intent}`,
+    });
+    return { ok: false as const, error: message, intent: intent as "single" };
+  }
 };
 
 export default function CollectionsPage() {
@@ -137,6 +153,7 @@ export default function CollectionsPage() {
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
   const revalidator = useRevalidator();
+  const reportClientError = useReportClientError();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const lastToastKey = useRef<string | null>(null);
 
@@ -158,6 +175,13 @@ export default function CollectionsPage() {
         shopify.toast.show("Collection bulk optimize failed", { isError: true });
       }
     },
+  });
+
+  useFetcherActionFeedback({
+    fetcher,
+    shopify,
+    disabled: isBulkRunning,
+    reportError: reportClientError,
   });
 
   const isBusy =

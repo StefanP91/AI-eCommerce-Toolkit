@@ -9,6 +9,7 @@ import { useEffect, useRef } from "react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { isGeminiConfigured } from "../lib/gemini.server";
+import { canViewAppLogs } from "../lib/error-log.server";
 import {
   buildBillingReturnUrl,
   canUseAi,
@@ -43,6 +44,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     freeLimit: FREE_DAILY_AI_LIMIT,
     proPrice: PRO_PRICE,
     devPlanToggle: useDevBillingBypass(),
+    canViewLogs: canViewAppLogs(session.shop),
   };
 };
 
@@ -107,6 +109,7 @@ export default function SettingsPage() {
     freeLimit,
     proPrice,
     devPlanToggle,
+    canViewLogs,
   } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
@@ -301,6 +304,15 @@ export default function SettingsPage() {
               ? "Powers Product Optimize, Translate, SEO tools, and Image Optimizer."
               : "AI generation is unavailable until the app owner adds an API key on the server. Schema markup still works without it."}
           </p>
+          {canViewLogs ? (
+            <Link
+              to="/app/logs"
+              className="dashboard-btn dashboard-btn-ghost"
+              style={{ marginTop: "0.75rem" }}
+            >
+              View error logs
+            </Link>
+          ) : null}
         </section>
 
         <section className="dashboard-card">

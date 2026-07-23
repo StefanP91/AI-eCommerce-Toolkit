@@ -114,6 +114,14 @@ export async function optimizeProductById(
       error: merchantAiError(error),
     };
     await record(shop, result, "optimize");
+    const { logAppError } = await import("./error-log.server");
+    await logAppError({
+      shop,
+      source: "optimize-product",
+      message: result.error,
+      detail: error instanceof Error ? error.stack || error.message : String(error),
+      path: productId,
+    });
     return result;
   }
 

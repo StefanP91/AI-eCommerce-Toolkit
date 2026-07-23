@@ -1,10 +1,14 @@
 /**
  * Keep the Shopify app Render service warm so merchants rarely see cold starts.
- * Configure Netlify schedule (or use GitHub Actions workflow) to hit this.
+ * Scheduled on Netlify every 5 minutes.
  */
 const TARGET =
   process.env.SHOPIFY_APP_KEEPALIVE_URL ||
   "https://ai-ecommerce-shopify-app.onrender.com/";
+
+export const config = {
+  schedule: "*/5 * * * *",
+};
 
 export async function handler() {
   const started = Date.now();

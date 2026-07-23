@@ -72,3 +72,18 @@ model AiUsageDaily {
   @@index([shop, day])
   @@schema("shopify")
 }
+
+model AppErrorLog {
+  id        String   @id @default(cuid())
+  shop      String?
+  source    String
+  level     String   @default("error")
+  message   String
+  detail    String?
+  path      String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([shop, createdAt])
+  @@schema("shopify")
+}

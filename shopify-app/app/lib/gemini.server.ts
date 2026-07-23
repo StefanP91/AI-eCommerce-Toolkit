@@ -21,6 +21,16 @@ export async function callGeminiJson(options: {
     } catch (error) {
       lastError = error;
       if (!shouldRetry(error) || attempt === 3) {
+        if (attempt === 3 || !shouldRetry(error)) {
+          const { logAppError } = await import("./error-log.server");
+          await logAppError({
+            source: "gemini",
+            message:
+              error instanceof Error ? error.message : "AI generation failed",
+            detail: error instanceof Error ? error.stack || null : String(error),
+            path: proxyUrl ? "proxy" : "direct",
+          });
+        }
         throw error;
       }
       const delayMs = attempt * 700;
@@ -59,6 +69,7 @@ async function callViaProxy(
       temperature: options.temperature ?? 0.5,
       image: options.image,
     }),
+    signal: AbortSignal.timeout(45000),
   });
 
   const rawBody = await response.text();
@@ -115,6 +126,7 @@ async function callDirect(options: {
         responseMimeType: "application/json",
       },
     }),
+    signal: AbortSignal.timeout(45000),
   });
 
   const detail = await response.text();
@@ -146,7 +158,7 @@ async function callDirect(options: {
 
 function shouldRetry(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error || "");
-  return /AI generation failed \((429|500|502|503|504)\)|fetch failed|ECONN|ETIMEDOUT|network|aborted/i.test(
+  return /AI generation failed \((429|500|502|503|504)\)|fetch failed|ECONN|ETIMEDOUT|TimeoutError|aborted|network/i.test(
     message,
   );
 }

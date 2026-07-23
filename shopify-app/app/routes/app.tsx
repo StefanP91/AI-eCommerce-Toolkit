@@ -12,7 +12,9 @@ import { NavMenu } from "@shopify/app-bridge-react";
 
 import { authenticate } from "../shopify.server";
 import { DashboardShell } from "../components/DashboardShell";
+import { ClientErrorBridge } from "../components/ClientErrorBridge";
 import { canUseAi } from "../lib/billing.server";
+import { canViewAppLogs } from "../lib/error-log.server";
 import dashboardStyles from "../styles/dashboard.css?url";
 
 export const links: LinksFunction = () => [
@@ -27,11 +29,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     apiKey: process.env.SHOPIFY_API_KEY || "",
     billing,
+    canViewLogs: canViewAppLogs(session.shop),
   };
 };
 
 export default function App() {
-  const { apiKey, billing } = useLoaderData<typeof loader>();
+  const { apiKey, billing, canViewLogs } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -43,8 +46,10 @@ export default function App() {
         <Link to="/app/collections">Collections</Link>
         <Link to="/app/tools">Tools</Link>
         <Link to="/app/settings">Settings</Link>
+        {canViewLogs ? <Link to="/app/logs">Logs</Link> : null}
       </NavMenu>
       <DashboardShell billing={billing}>
+        <ClientErrorBridge />
         <Outlet />
       </DashboardShell>
     </AppProvider>

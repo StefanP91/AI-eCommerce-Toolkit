@@ -6,6 +6,8 @@ import type {
 import { Form, Link, useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFetcherActionFeedback } from "../hooks/useFetcherActionFeedback";
+import { useReportClientError } from "../hooks/useReportClientError";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
@@ -505,9 +507,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return { ok: false as const, error: "Unknown action" };
   } catch (error) {
+    const { logAppError } = await import("../lib/error-log.server");
+    const message = merchantAiError(error);
+    await logAppError({
+      shop,
+      source: "tools.action",
+      message,
+      detail: error instanceof Error ? error.stack || error.message : String(error),
+      path: `/app/tools#${intent}`,
+    });
     return {
       ok: false as const,
-      error: merchantAiError(error),
+      error: message,
     };
   }
 };
@@ -517,6 +528,7 @@ export default function ToolsPage() {
     useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
+  const reportClientError = useReportClientError();
 
   const [tab, setTab] = useState<ToolTab>("translate");
   const [productId, setProductId] = useState(products[0]?.id || "");
@@ -527,6 +539,12 @@ export default function ToolsPage() {
   const [country, setCountry] = useState("US");
   const [selectedTitle, setSelectedTitle] = useState("");
   const lastToastKey = useRef<string | null>(null);
+
+  useFetcherActionFeedback({
+    fetcher,
+    shopify,
+    reportError: reportClientError,
+  });
 
   const productIdsKey = products.map((product) => product.id).join("|");
 

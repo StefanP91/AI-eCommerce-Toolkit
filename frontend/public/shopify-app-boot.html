@@ -25,7 +25,7 @@
           radial-gradient(circle at 15% 80%, rgba(134, 59, 255, 0.14), transparent 35%),
           var(--bg);
         color: var(--text);
-        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: "Segoe UI", system-ui, sans-serif;
       }
       .wrap {
         min-height: 100vh;
@@ -40,12 +40,6 @@
         border-radius: 16px;
         padding: 1.5rem 1.35rem;
         text-align: center;
-      }
-      .logo {
-        height: 34px;
-        width: auto;
-        margin: 0 auto 1rem;
-        display: block;
       }
       h1 {
         margin: 0 0 0.4rem;
@@ -95,17 +89,24 @@
       (function () {
         var APP_ORIGIN = "https://ai-ecommerce-shopify-app.onrender.com";
         var statusEl = document.getElementById("status");
-        var params = window.location.search || "";
-        var hash = window.location.hash || "";
         var attempts = 0;
-        var maxAttempts = 60;
+        var maxAttempts = 90;
+        var opened = false;
 
         function go() {
-          var query = params || "";
-          if (query && query.charAt(0) !== "?") {
-            query = "?" + query;
+          if (opened) return;
+          opened = true;
+          statusEl.textContent = "Ready — opening app…";
+          var url = new URL(APP_ORIGIN + "/app");
+          var incoming = new URLSearchParams(window.location.search || "");
+          incoming.forEach(function (value, key) {
+            url.searchParams.set(key, value);
+          });
+          if (!url.searchParams.get("embedded")) {
+            url.searchParams.set("embedded", "1");
           }
-          window.location.replace(APP_ORIGIN + "/app" + query + hash);
+          // Stay inside the Admin iframe (replace, not new tab).
+          window.location.replace(url.toString() + (window.location.hash || ""));
         }
 
         async function probe() {
@@ -117,7 +118,6 @@
             });
             var json = await res.json();
             if (json && json.ready) {
-              statusEl.textContent = "Ready — opening app…";
               go();
               return;
             }
@@ -135,10 +135,9 @@
             attempts < 4
               ? "Waking the app server…"
               : "Still starting — almost there…";
-          setTimeout(probe, 2500);
+          setTimeout(probe, attempts < 8 ? 1500 : 2500);
         }
 
-        // Fast path: try once, then poll.
         probe();
       })();
     </script>

@@ -4,7 +4,12 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { PRO_BENEFITS, PRO_PRICE } from "../lib/billing";
 
 type UpgradeActionData =
-  | { ok: true; intent: "upgrade"; confirmationUrl: string }
+  | {
+      ok: true;
+      intent: "upgrade";
+      confirmationUrl: string;
+      usedDevBypass?: boolean;
+    }
   | { ok: false; error: string }
   | { ok: true; intent: "sync" };
 
@@ -30,6 +35,13 @@ function useUpgradeCheckout() {
     lastKey.current = key;
 
     if (fetcher.data.ok && "confirmationUrl" in fetcher.data) {
+      if (fetcher.data.usedDevBypass) {
+        shopify.toast.show(
+          "Dev bypass still ON — restart shopify app dev after BILLING_DEV_BYPASS=0",
+          { isError: true },
+        );
+        return;
+      }
       open(fetcher.data.confirmationUrl, "_top");
       return;
     }

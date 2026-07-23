@@ -1,0 +1,40 @@
+# Pull production error logs into the repo so they show up after git pull.
+name: Pull error logs
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: "20 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Pull logs from Render
+        working-directory: shopify-app
+        env:
+          APP_URL: https://ai-ecommerce-shopify-app.onrender.com
+          LOG_EXPORT_SECRET: ${{ secrets.LOG_EXPORT_SECRET }}
+        run: node scripts/pull-error-logs.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add shopify-app/logs/error-logs.jsonl
+          if git diff --staged --quiet; then
+            echo "No log changes"
+            exit 0
+          fi
+          git commit -m "chore: sync production error logs"
+          git push

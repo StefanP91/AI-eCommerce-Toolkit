@@ -253,6 +253,14 @@ Rules:
         error: result.error,
       });
     }
+    const { logAppError } = await import("./error-log.server");
+    await logAppError({
+      shop,
+      source: "optimize-collection",
+      message: result.error,
+      detail: error instanceof Error ? error.stack || error.message : String(error),
+      path: collectionId,
+    });
     return result;
   }
 

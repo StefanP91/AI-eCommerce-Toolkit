@@ -4,7 +4,8 @@ export type ActivityAction =
   | "optimize"
   | "translate"
   | "alt"
-  | "collection_optimize";
+  | "collection_optimize"
+  | "collection_optimize_preview";
 
 export type ActivityStatus = "Success" | "Fail";
 
@@ -69,6 +70,8 @@ export function formatActivityAction(action: string): string {
       return "Image optimizer";
     case "collection_optimize":
       return "Collection optimize";
+    case "collection_optimize_preview":
+      return "Collection draft";
     default:
       return action;
   }

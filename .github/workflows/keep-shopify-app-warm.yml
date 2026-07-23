@@ -3,7 +3,7 @@ name: Keep Shopify app warm
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
