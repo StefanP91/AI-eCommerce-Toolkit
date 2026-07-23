@@ -2,7 +2,8 @@
 
 client_id = "dcf856197337df13d712c2c6b6188bd7"
 name = "AI Commerce Suite"
-application_url = "https://ai-ecommerce-shopify-app.onrender.com"
+# Public URL = Netlify Shopify PROXY (never marketing site).
+application_url = "https://ai-commerce-suite-shopify.netlify.app"
 embedded = true
 
 [build]
@@ -32,6 +33,6 @@ scopes = "read_products,write_products"
 
 [auth]
 redirect_urls = [
-  "https://ai-ecommerce-shopify-app.onrender.com/auth/callback",
-  "https://ai-ecommerce-shopify-app.onrender.com/auth/shopify/callback"
+  "https://ai-commerce-suite-shopify.netlify.app/auth/callback",
+  "https://ai-commerce-suite-shopify.netlify.app/auth/shopify/callback"
 ]

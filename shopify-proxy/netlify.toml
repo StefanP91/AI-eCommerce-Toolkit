@@ -1,0 +1,12 @@
+# Dedicated Shopify app edge — NOT the marketing site.
+# Publish this folder as its own Netlify site (e.g. ai-commerce-suite-shopify).
+# App URL / SHOPIFY_APP_URL must be THIS site, never ai-ecommerce-suite.netlify.app.
+
+[build]
+  publish = "public"
+  # No build step — edge function only.
+  command = "echo shopify-proxy"
+
+[[edge_functions]]
+  function = "origin-proxy"
+  path = "/*"
