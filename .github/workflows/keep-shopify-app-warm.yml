@@ -1,0 +1,26 @@
+# Ping the Shopify Render service so free-tier cold starts are rare.
+name: Keep Shopify app warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake Render app
+        run: |
+          set -e
+          URL="https://ai-ecommerce-shopify-app.onrender.com/"
+          echo "Pinging $URL"
+          curl -fsS -o /tmp/warm.html -w "%{http_code}" "$URL" | tee /tmp/code.txt
+          echo
+          if grep -qiE "SERVICE WAKING UP|ALLOCATING COMPUTE RESOURCES" /tmp/warm.html; then
+            echo "Service was waking; waiting and retrying..."
+            sleep 25
+            curl -fsS -o /tmp/warm2.html -w "%{http_code}" "$URL"
+            echo
+          fi
+          echo "Keep-warm done."

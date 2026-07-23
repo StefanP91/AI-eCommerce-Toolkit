@@ -14,6 +14,18 @@
   force = true
 
 [[redirects]]
+  from = "/shopify-app-boot"
+  to = "/shopify-app-boot.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/shopify-app-ready"
+  to = "/.netlify/functions/shopify-app-ready"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/sitemap.xml"
   to = "/.netlify/functions/sitemap"
   status = 200

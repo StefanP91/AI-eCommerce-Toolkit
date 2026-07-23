@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Commerce Suite</title>
+    <style>
+      :root {
+        --bg: #070d1a;
+        --card: #141f35;
+        --text: #e8edf7;
+        --muted: #8b9bb8;
+        --accent: #863bff;
+        --blue: #47bfff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background:
+          radial-gradient(circle at top right, rgba(71, 191, 255, 0.1), transparent 40%),
+          radial-gradient(circle at 15% 80%, rgba(134, 59, 255, 0.14), transparent 35%),
+          var(--bg);
+        color: var(--text);
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      .wrap {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 1.5rem;
+      }
+      .card {
+        width: min(420px, 100%);
+        background: var(--card);
+        border: 1px solid rgba(126, 20, 255, 0.22);
+        border-radius: 16px;
+        padding: 1.5rem 1.35rem;
+        text-align: center;
+      }
+      .logo {
+        height: 34px;
+        width: auto;
+        margin: 0 auto 1rem;
+        display: block;
+      }
+      h1 {
+        margin: 0 0 0.4rem;
+        font-size: 1.15rem;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.45;
+      }
+      .spinner {
+        width: 34px;
+        height: 34px;
+        margin: 1.15rem auto 0.85rem;
+        border-radius: 50%;
+        border: 3px solid rgba(255, 255, 255, 0.12);
+        border-top-color: var(--accent);
+        border-right-color: var(--blue);
+        animation: spin 0.85s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .hint {
+        margin-top: 0.75rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>AI Commerce Suite</h1>
+        <p style="margin-bottom: 0.35rem; color: var(--muted); font-size: 0.85rem">
+          Starting your workspace
+        </p>
+        <div class="spinner" aria-hidden="true"></div>
+        <p id="status">Preparing your workspace…</p>
+        <p class="hint">This can take up to a minute after idle time.</p>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var APP_ORIGIN = "https://ai-ecommerce-shopify-app.onrender.com";
+        var statusEl = document.getElementById("status");
+        var params = window.location.search || "";
+        var hash = window.location.hash || "";
+        var attempts = 0;
+        var maxAttempts = 60;
+
+        function go() {
+          window.location.replace(APP_ORIGIN + "/" + params + hash);
+        }
+
+        async function probe() {
+          attempts += 1;
+          try {
+            var res = await fetch("/.netlify/functions/shopify-app-ready", {
+              method: "GET",
+              cache: "no-store",
+            });
+            var json = await res.json();
+            if (json && json.ready) {
+              statusEl.textContent = "Ready — opening app…";
+              go();
+              return;
+            }
+          } catch (_) {
+            /* still waking */
+          }
+
+          if (attempts >= maxAttempts) {
+            statusEl.textContent = "Taking longer than usual — opening app…";
+            go();
+            return;
+          }
+
+          statusEl.textContent =
+            attempts < 4
+              ? "Waking the app server…"
+              : "Still starting — almost there…";
+          setTimeout(probe, 2500);
+        }
+
+        // Fast path: try once, then poll.
+        probe();
+      })();
+    </script>
+  </body>
+</html>
