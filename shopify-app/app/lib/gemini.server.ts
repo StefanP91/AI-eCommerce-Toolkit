@@ -43,6 +43,8 @@ export async function callGeminiJson(options: {
   });
 
   if (!response.ok) {
+    const detail = (await response.text()).slice(0, 300);
+    console.error("[gemini]", response.status, detail);
     throw new Error(`AI generation failed (${response.status})`);
   }
 
