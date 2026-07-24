@@ -1,22 +1,29 @@
 /**
- * Entry-only cold-start gate.
- * Shows branded loader while Render sleeps; otherwise falls through to the
- * redirect proxy (see netlify.toml). Must NOT wrap long AI POSTs.
+ * Cold-start gate for every GET through the Shopify proxy.
+ * Replaces Render's "WELCOME TO RENDER" page with our loader.
+ * POSTs / mutations always fall through (Optimize must not hit Edge limits).
  */
 const ORIGIN = "https://ai-ecommerce-shopify-app.onrender.com";
 
 const WAKING_RE =
-  /SERVICE WAKING UP|ALLOCATING COMPUTE RESOURCES|INCOMING HTTP REQUEST DETECTED|WELCOME TO RENDER/i;
+  /SERVICE WAKING UP|ALLOCATING COMPUTE RESOURCES|INCOMING HTTP REQUEST DETECTED|WELCOME TO RENDER|RENDER\.COM/i;
 
 export default async (request, context) => {
-  // Never gate mutations / data posts — Optimize lives here.
+  // Mutations / single-fetch POSTs — never wait in Edge.
   if (request.method !== "GET" && request.method !== "HEAD") {
     return context.next();
   }
 
+  // Skip Netlify internals and static assets that never need a wake check.
   const incoming = new URL(request.url);
-  const target = new URL(incoming.pathname + incoming.search, ORIGIN);
+  if (
+    incoming.pathname.startsWith("/.netlify") ||
+    /\.(js|css|map|png|jpe?g|gif|svg|webp|ico|woff2?)$/i.test(incoming.pathname)
+  ) {
+    return context.next();
+  }
 
+  const target = new URL(incoming.pathname + incoming.search, ORIGIN);
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.set("accept-encoding", "identity");
@@ -26,7 +33,7 @@ export default async (request, context) => {
   let upstream;
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
+    const timer = setTimeout(() => controller.abort(), 10000);
     upstream = await fetch(target.toString(), {
       method: "GET",
       headers,
@@ -36,6 +43,36 @@ export default async (request, context) => {
     clearTimeout(timer);
   } catch {
     return loaderResponse();
+  }
+
+  // Cold Render often answers with waking HTML at 200, or 5xx while allocating.
+  const contentType = upstream.headers.get("content-type") || "";
+  const looksHtml =
+    contentType.includes("text/html") ||
+    contentType.includes("text/plain") ||
+    !contentType;
+
+  if (looksHtml || upstream.status >= 500) {
+    const text = await upstream.text();
+    if (
+      WAKING_RE.test(text) ||
+      upstream.status >= 502 ||
+      upstream.status === 503
+    ) {
+      return loaderResponse();
+    }
+
+    if (upstream.status >= 300 && upstream.status < 400) {
+      // Should not happen after .text(), but keep safe.
+      return loaderResponse();
+    }
+
+    if (contentType.includes("text/html") || text.trim().startsWith("<!")) {
+      return new Response(text, {
+        status: upstream.status,
+        headers: sanitizeHeaders(upstream.headers),
+      });
+    }
   }
 
   if (upstream.status >= 300 && upstream.status < 400) {
@@ -49,19 +86,7 @@ export default async (request, context) => {
     }
   }
 
-  const contentType = upstream.headers.get("content-type") || "";
-  if (contentType.includes("text/html")) {
-    const text = await upstream.text();
-    if (WAKING_RE.test(text) || upstream.status >= 502) {
-      return loaderResponse();
-    }
-    return new Response(text, {
-      status: upstream.status,
-      headers: sanitizeHeaders(upstream.headers),
-    });
-  }
-
-  // Non-HTML entry — let the redirect proxy handle it.
+  // Warm non-HTML (or already consumed) — fall through to redirect proxy.
   return context.next();
 };
 

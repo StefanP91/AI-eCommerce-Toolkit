@@ -19,6 +19,7 @@ export const loader = async (_args: LoaderFunctionArgs) => {
     geminiProxyUrl: process.env.GEMINI_PROXY_URL?.trim() || null,
     appUrl: process.env.SHOPIFY_APP_URL || null,
     scopes: process.env.SCOPES || null,
+    logViewShopsConfigured: Boolean(process.env.LOG_VIEW_SHOPS?.trim()),
   };
 
   try {

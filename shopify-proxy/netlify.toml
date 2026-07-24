@@ -1,26 +1,16 @@
 # Dedicated Shopify app edge — NOT the marketing site.
 # Publish this folder as its own Netlify site (e.g. ai-commerce-suite-shopify).
-# App URL / SHOPIFY_APP_URL must be THIS site, never ai-ecommerce-suite.netlify.app.
 
 [build]
   publish = "public"
   command = "echo shopify-proxy"
 
-# Cold-start loader ONLY on entry GETs (fast). Do NOT run edge on
-# /app/products actions — Optimize/AI needs longer than Edge allows.
+# Gate ALL GETs for Render cold-start HTML. POSTs return next() immediately
+# so Optimize is handled by the redirect proxy (no Edge timeout).
 [[edge_functions]]
   function = "cold-start-gate"
-  path = "/"
+  path = "/*"
 
-[[edge_functions]]
-  function = "cold-start-gate"
-  path = "/app"
-
-[[edge_functions]]
-  function = "cold-start-gate"
-  path = "/app/"
-
-# Everything else (including Optimize POST) proxies to Render without Edge CPU/time limits.
 [[redirects]]
   from = "/*"
   to = "https://ai-ecommerce-shopify-app.onrender.com/:splat"

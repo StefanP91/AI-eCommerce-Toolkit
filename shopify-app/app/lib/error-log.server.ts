@@ -146,11 +146,29 @@ export async function listAppErrors(
 export function canViewAppLogs(shop: string | null | undefined): boolean {
   const raw = process.env.LOG_VIEW_SHOPS?.trim();
   if (!raw || !shop) return false;
+
+  const normalize = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/$/, "")
+      .replace(/\.myshopify\.com$/i, "");
+
+  const shopKey = normalize(shop);
   const allowed = raw
     .split(",")
-    .map((value) => value.trim().toLowerCase())
+    .map((value) => normalize(value))
     .filter(Boolean);
-  return allowed.includes(shop.toLowerCase());
+
+  // Match full domain or store slug (ai-ecommerce-suite).
+  return allowed.some(
+    (entry) =>
+      entry === shopKey ||
+      entry === `${shopKey}.myshopify.com` ||
+      shop.toLowerCase() === entry ||
+      shop.toLowerCase() === `${entry}.myshopify.com`,
+  );
 }
 
 export function formatErrorLogsJsonl(
